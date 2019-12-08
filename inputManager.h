@@ -1,5 +1,10 @@
 #pragma once
 #include "igl/opengl/glfw/Display.h"
+#include <igl/shortest_edge_and_midpoint.h>
+#include <igl/collapse_edge.h>
+#include <igl\edge_flaps.cpp>
+#include <igl\vertex_triangle_adjacency.h>
+
 
 static void glfw_mouse_press(GLFWwindow* window, int button, int action, int modifier)
 {
@@ -119,7 +124,70 @@ void glfw_window_size(GLFWwindow* window, int width, int height)
 //{
 //	fputs(description, stderr);
 //}
+//const auto& pre_draw = [&](igl::opengl::glfw::Viewer& viewer)->bool
+//{
+//	// If animating then collapse 10% of edges
+//	if (viewer.core().is_animating && !Q.empty())
+//	{
+//		bool something_collapsed = false;
+//		// collapse edge
+//		const int max_iter = std::ceil(0.01 * Q.size());
+//		for (int j = 0; j < max_iter; j++)
+//		{
+//			if (!collapse_edge(
+//				shortest_edge_and_midpoint, V, F, E, EMAP, EF, EI, Q, Qit, C))
+//			{
+//				break;
+//			}
+//			something_collapsed = true;
+//			num_collapsed++;
+//		}
+//
+//		if (something_collapsed)
+//		{
+//			viewer.data().clear();
+//			viewer.data().set_mesh(V, F);
+//			viewer.data().set_face_based(true);
+//		}
+//	}
+//	return false;
+//};
+static bool preDraw(Renderer* rndr, igl::opengl::glfw::Viewer* viewer) {
+	// If animating then collapse 10% of edges
+	
+	if (/*rndr->core().is_animating &&*/ !viewer->data_list2[viewer->selected_data_index].Q.empty())
+	{
+		bool something_collapsed = false;
+		
+		// collapse edge
+		int max_iter = std::ceil(0.05 * viewer->data_list2[viewer->selected_data_index].Q.size());
+		for (int j = 0; j < max_iter; j++)
+		{
+			
+			if (!viewer->new_collapse_edge(viewer->data().V, viewer->data().F, viewer->data_list2[viewer->selected_data_index].E, viewer->data_list2[viewer->selected_data_index].EMAP, viewer->data_list2[viewer->selected_data_index].EF,
+				viewer->data_list2[viewer->selected_data_index].EI, viewer->data_list2[viewer->selected_data_index].VF, viewer->data_list2[viewer->selected_data_index].VI, viewer->data_list2[viewer->selected_data_index].C, viewer->data_list2[viewer->selected_data_index].Q, viewer->data_list2[viewer->selected_data_index].Qs, viewer->data_list2[viewer->selected_data_index].Qit))
+			{
 
+				break;
+			}
+			something_collapsed = true;
+		}
+
+		if (something_collapsed)
+		{
+			Eigen::MatrixXd newv (viewer->data().V);
+			Eigen::MatrixXi newF (viewer->data().F);
+			viewer->data().clear();
+			viewer->data().set_mesh(newv, newF);
+			//igl::edge_flaps(viewer->data().F, viewer->data_list2[viewer->selected_data_index].E,
+			//	viewer->data_list2[viewer->selected_data_index].EMAP, viewer->data_list2[viewer->selected_data_index].EF,
+			//	viewer->data_list2[viewer->selected_data_index].EI);
+			//igl::vertex_triangle_adjacency(viewer->data().V, viewer->data().F, viewer->data_list2[viewer->selected_data_index].VF, viewer->data_list2[viewer->selected_data_index].VI);
+			viewer->data().set_face_based(true);
+		}
+	}
+	return false;
+}
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int modifier)
 {
 	Renderer* rndr = (Renderer*) glfwGetWindowUserPointer(window);
@@ -172,6 +240,11 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		{
 			scn->selected_data_index =
 				(scn->selected_data_index + scn->data_list.size() + (key == '2' ? 1 : -1)) % scn->data_list.size();
+			break;
+		}
+		case ' ':
+		{
+			preDraw(rndr, scn);
 			break;
 		}
 		case '[':
