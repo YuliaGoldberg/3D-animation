@@ -151,16 +151,65 @@ namespace igl
 					++index;
 				}
 			}
-			void Viewer::initEdges2()
+			/*void Viewer::initEdges2()
 			{
-				
 				int index = 0;
 				vector<ViewerData>::iterator ptr;
 				data_list2.resize(data_list.size());
 				for (ptr = data_list.begin(); ptr != data_list.end(); ++ptr) {
-					
-					
 
+
+					if (ptr == data_list.begin()) {
+
+
+						ptr->MyTranslate(Eigen::Vector3f(5, 0, 0));
+
+					}
+					else {
+						Eigen::Vector3d m = ptr->V.colwise().minCoeff();
+						Eigen::Vector3d M = ptr->V.colwise().maxCoeff();
+
+						Eigen::MatrixXd V_box(7, 3);
+						double 
+							
+							X = (M(0) + m(0)) / 2;
+						double centerX = (M(0) + m(0)) / 2;
+						double centerZ = (M(2) + m(2)) / 2;
+						double link_length = M(1) - m(1);
+
+						V_box <<
+							centerX, m(1), centerZ, //0-lower y 
+							centerX, M(1), centerZ, //1-center of axis's
+							centerX, M(1) + link_length, centerZ,//2-higher y 
+							centerX + link_length, M(1), centerZ, //3- higher x
+							centerX - link_length, M(1), centerZ,//4- lower x
+							centerX, M(1), centerZ + link_length, //5-higher z
+							centerX, M(1), centerZ - link_length; //6-lower z
+
+
+						Eigen::MatrixXi E_box(3, 2);
+						E_box <<
+							0, 2,
+							3, 4,
+							5, 6;
+
+
+
+						ptr->add_points(V_box, Eigen::RowVector3d(0, 1, 0));
+						for (unsigned i = 0; i < E_box.rows(); ++i)
+							ptr->add_edges
+							(
+								V_box.row(E_box(i, 0)),
+								V_box.row(E_box(i, 1)),
+								Eigen::RowVector3d(1, 0, 0)
+							);
+						ptr->MyTranslate(Eigen::Vector3f(0, (link_length / 2) * (index - 1), 0));
+						ptr->show_overlay_depth = false;
+						ptr->point_size = 5;
+						ptr->line_width = 1;
+
+					}
+				
 					edge_flaps(ptr->F, data_list2[index].E, data_list2[index].EMAP, data_list2[index].EF, data_list2[index].EI);
 					vertex_triangle_adjacency(ptr->V, ptr->F, data_list2[index].VF, data_list2[index].VI);
 					data_list2[index].Qit.resize(data_list2[index].E.rows());
@@ -202,6 +251,106 @@ namespace igl
 					}
 					++index;
 				}
+			}*/
+			//will update data_list_indices list
+			void Viewer::initEdges3()
+			{
+				int index = 0;
+				vector<ViewerData>::iterator ptr;
+				data_list_indices.resize(data_list.size() - 1);
+				for (ptr = data_list.begin(); ptr != data_list.end(); ++ptr) {
+
+					ptr->set_colors(Eigen::RowVector3d(135. / 255., 255. / 255., 255. / 255.));
+					if (ptr == data_list.begin()) {
+						ptr->MyTranslate(Eigen::Vector3f(5, 0, 0));
+					}
+					else {
+						Eigen::Vector3d m = ptr->V.colwise().minCoeff();
+						Eigen::Vector3d M = ptr->V.colwise().maxCoeff();
+
+						Eigen::MatrixXd V_box(7, 3);
+						double centerX = (M(0) + m(0)) / 2;
+						double centerZ = (M(2) + m(2)) / 2;
+						double link_length = M(1) - m(1);
+						ptr->SetCenterOfRotation(Eigen::Vector3d(data_list[index].V.colwise().mean()[0], data_list[index].V.colwise().minCoeff()[1], data_list[index].V.colwise().mean()[0]));
+						if(index==1)ptr->MyTranslate(Eigen::Vector3f(0, 0, 0));
+						else
+						{
+							ptr->MyTranslate(Eigen::Vector3f(0, link_length, 0));
+						}
+						V_box <<
+							centerX, m(1), centerZ, //0-lower y 
+							centerX, M(1), centerZ, //1-center of axis's
+							centerX, M(1) + link_length, centerZ,//2-higher y 
+							centerX + link_length, M(1), centerZ, //3- higher x
+							centerX - link_length, M(1), centerZ,//4- lower x
+							centerX, M(1), centerZ + link_length, //5-higher z
+							centerX, M(1), centerZ - link_length; //6-lower z
+
+
+						Eigen::MatrixXi E_box(3, 2);
+						E_box <<
+							0, 2,
+							3, 4,
+							5, 6;
+
+
+
+						ptr->add_points(V_box, Eigen::RowVector3d(0, 1, 0));
+						ptr->add_edges(V_box.row(E_box(0, 0)), V_box.row(E_box(0, 1)), Eigen::RowVector3d(0, 1, 0));//y axis
+						ptr->add_edges(V_box.row(E_box(1, 0)), V_box.row(E_box(1, 1)), Eigen::RowVector3d(1, 0, 0));//x axis
+						ptr->add_edges(V_box.row(E_box(2, 0)), V_box.row(E_box(2, 1)), Eigen::RowVector3d(0, 0, 1));//z axis
+						/*for (unsigned i = 0; i < E_box.rows(); ++i)
+							ptr->add_edges
+							(
+								V_box.row(E_box(i, 0)),
+								V_box.row(E_box(i, 1)),
+								Eigen::RowVector3d(1, 0, 0)
+							);*/
+	//					if(index == 1)
+	//						ptr->MyTranslate(Eigen::Vector3f(0, 0, 0));
+	//					else
+						
+						ptr->show_overlay_depth = false;
+						ptr->point_size = 5;
+						ptr->line_width = 1;
+						Eigen::Vector4f center_rot;
+						data_list_indices[index - 1].prev = index - 1;//update father of each link
+						data_list_indices[index - 1].cylinder_length = link_length;
+						//data_list_indices[index - 1].topCylinder << centerX, M(1)*index, centerZ;
+						Eigen::Vector4f vec(0, 0, 0, 1);
+						
+						//
+					
+					}
+					index++;
+				}
+				data_list_indices[0].prev = -1;//the first link has no father
+				
+				
+			}
+
+
+			Eigen::Matrix4f Viewer::CalcParentsTrans(int index) {
+				if (index < 2) {
+					
+					return Eigen::Matrix4f::Identity();
+				}
+				
+				return CalcParentsTrans(index-1) * data_list[index-1].MakeTrans();
+			}
+			Eigen::Matrix3f Viewer::CalcParentsInverse(int index) {
+				if (index < 2) {
+					
+					return Eigen::Matrix3f::Identity();
+				}
+				
+				return  data_list[index - 1].GetRotation().inverse() * CalcParentsInverse(index - 1);
+			}
+			double Viewer::Scale(int index) {
+				if (index == 0)
+					return 0;
+				return data_list_indices[index - 1].cylinder_length;
 			}
 			Eigen::Matrix4d Viewer::initRp(double d,Eigen::Vector3d normal)
 			{
@@ -226,32 +375,39 @@ namespace igl
 				_qtag.row(3) << 0, 0, 0, 1;
 				Eigen::Vector4d zeroX31;
 				zeroX31 << 0, 0, 0, 1;
-				Eigen::Vector4d minV(_qtag.inverse() * zeroX31);
+				//Eigen::Vector4d minV(_qtag.inverse() * zeroX31);
+				Eigen::Vector4d minV(0,0,0,0);
+				minV << (v1 + v2) / 2,0;
 				cost = minV.transpose() * _q * minV;
-				p << minV[0], minV[1], minV[2];
-				cout << "p (" << minV[0] << "," << minV[1] << "," << minV[2] << ") ,cost = " << cost << endl;
+				//p << minV[0], minV[1], minV[2];
+				p = (v1 + v2) / 2;
+				//cout << "p (" << minV[0] << "," << minV[1] << "," << minV[2] << ") ,cost = " << cost << endl;
 			}
 			IGL_INLINE Viewer::~Viewer()
 			{
 			}
 			IGL_INLINE void Viewer::load_meshes_from_file(const std::string& mesh_file_name_string) {
+
 				std::ifstream file(mesh_file_name_string);
 				if (file.is_open()) {
 					std::string line;
+					int times = 1;
 					while (getline(file,line))
 					{
-						load_mesh_from_file(line);
+						for(int i = 0;i<times;++i )
+							load_mesh_from_file(line);
+						times = 4;
 					}
 					file.close();
 				}
 				else {
 					std::cerr << "-- configuration file not found --" << std::endl;
 				}
-				initEdges2();
+				
 			}
 			IGL_INLINE bool Viewer::load_mesh_from_file(const std::string& mesh_file_name_string)
 			{
-
+				
 				// Create new data slot and set to selected
 				if (!(data().F.rows() == 0 && data().V.rows() == 0))
 				{
@@ -276,6 +432,8 @@ namespace igl
 					if (!igl::readOFF(mesh_file_name_string, V, F))
 						return false;
 					data().set_mesh(V, F);
+
+
 					//igl::edge_flaps(F,uE,EMAP,EF,EI);
 				}
 				else if (extension == "obj" || extension == "OBJ")
@@ -561,17 +719,6 @@ namespace igl
 					}
 				}
 				
-				for (auto& f : VF[v2]) {
-					if (f != EF.row(e)[0] && f != EF.row(e)[1]) {
-						Vector3d normal(data().F_normals.row(f).normalized());
-						RowVector3d v(V.row(F.row(f)[0]));
-						double d = (-v) * normal;
-						Matrix4d rp(initRp(d, normal));
-						for (int i = 0; i < 3; ++i) {
-							Qs[F.row(f)[i]] -= rp;
-						}
-					}
-				}
 				
 				const int eflip = E(e, 0) > E(e, 1);
 				// source and destination
@@ -582,6 +729,18 @@ namespace igl
 					p.first = std::numeric_limits<double>::infinity();
 					Qit[e] = Q.insert(p).first;
 					return false;
+				}
+
+				for (auto& f : VF[v2]) {
+					if (f != EF.row(e)[0] && f != EF.row(e)[1]) {
+						Vector3d normal(data().F_normals.row(f).normalized());
+						RowVector3d v(V.row(F.row(f)[0]));
+						double d = (-v) * normal;
+						Matrix4d rp(initRp(d, normal));
+						for (int i = 0; i < 3; ++i) {
+							Qs[F.row(f)[i]] -= rp;
+						}
+					}
 				}
 				
 				const vector<int> nV2Fd = circulation(e, !eflip, EMAP, EF, EI);

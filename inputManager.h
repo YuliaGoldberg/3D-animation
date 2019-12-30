@@ -4,6 +4,7 @@
 #include <igl/collapse_edge.h>
 #include <igl\edge_flaps.cpp>
 #include <igl\vertex_triangle_adjacency.h>
+#include <igl\look_at.h>
 
 
 static void glfw_mouse_press(GLFWwindow* window, int button, int action, int modifier)
@@ -19,7 +20,9 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 	  bool found = false;
 	  float min_distanc = INFINITY;
 	  int i = 0, savedIndx = scn->selected_data_index;
-	  
+	  if((int)scn->selected_data_index>=0){
+		  scn->data().set_colors(Eigen::RowVector3d(135./255.,255./255., 255. /255.));
+	  }
 	  for (; i < scn->data_list.size();i++)
 	  { 
 		  scn->selected_data_index = i;
@@ -36,10 +39,12 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 	  if(!found)
 	  {
 		  std::cout << "not found " << std::endl;
-		  
+		  scn->selected_data_index = -1;
 	  }
-	  else
+	  else {
 		  std::cout << "found " << savedIndx << std::endl;
+		  scn->data().set_colors(Eigen::RowVector3d(135. / 255., 0 / 255., 255. / 255.));
+	  }
 	  rndr->UpdatePosition(x2, y2);
 	 
   }
@@ -87,6 +92,7 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 
  void glfw_mouse_move(GLFWwindow* window, double x, double y)
 {
+	 
 	 Renderer* rndr = (Renderer*)glfwGetWindowUserPointer(window);
 	 rndr->UpdatePosition(x, y);
 	 if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
@@ -101,9 +107,27 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 
 static void glfw_mouse_scroll(GLFWwindow* window, double x, double y)
 {
-	Renderer* rndr = (Renderer*)glfwGetWindowUserPointer(window);
-	rndr->GetScene()->data().MyScale(Eigen::Vector3f(1 + y * 0.01,1 + y * 0.01,1+y*0.01));
 
+	Renderer* rndr = (Renderer*)glfwGetWindowUserPointer(window);
+	igl::opengl::glfw::Viewer* scn = rndr->GetScene();
+	Eigen::Matrix4f view = Eigen::Matrix4f::Identity(); // get identity matrix of view
+	igl::look_at(rndr->core().camera_eye, rndr->core().camera_center, rndr->core().camera_up, view);
+	view = view * (rndr->core().trackball_angle * Eigen::Scaling(rndr->core().camera_zoom * rndr->core().camera_base_zoom)
+		* Eigen::Translation3f(rndr->core().camera_translation + rndr->core().camera_base_translation)).matrix()
+		* rndr->GetScene()->MakeTrans();
+
+
+	if (scn->selected_data_index == -1) {
+		rndr->GetScene()->MyTranslate((view * Eigen::Vector4f(0, 0, 1, 1)).head(3) * y * 0.01);
+	}
+	else {
+		if (scn->selected_data_index > 1) {
+			rndr->GetScene()->data_list[1].MyTranslate((view * Eigen::Vector4f(0, 0, 1, 1)).head(3) * y * 0.01,scn);
+		}
+		else {
+			rndr->GetScene()->data().MyTranslate((view * Eigen::Vector4f(0, 0, 1, 1)).head(3) * y * 0.01,scn);
+		}
+	}
 }
 
 void glfw_window_size(GLFWwindow* window, int width, int height)
@@ -207,20 +231,24 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		case 'F':
 		case 'f':
 		{
+			if(scn->selected_data_index>=0)
 			scn->data().set_face_based(!scn->data().face_based);
 			break;
 		}
 		case 'I':
 		case 'i':
 		{
-			scn->data().dirty |= igl::opengl::MeshGL::DIRTY_NORMAL;
-			scn->data().invert_normals = !scn->data().invert_normals;
+			if (scn->selected_data_index >= 0) {
+				scn->data().dirty |= igl::opengl::MeshGL::DIRTY_NORMAL;
+				scn->data().invert_normals = !scn->data().invert_normals;
+			}
 			break;
 		}
 		case 'L':
 		case 'l':
 		{
-			rndr->core().toggle(scn->data().show_lines);
+			if (scn->selected_data_index >= 0)
+				rndr->core().toggle(scn->data().show_lines);
 			break;
 		}
 		case 'O':
@@ -232,7 +260,14 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		case 'T':
 		case 't':
 		{
-			rndr->core().toggle(scn->data().show_faces);
+			//rndr->core().toggle(scn->data().show_faces);
+			//scn->print_tip()
+			int index = scn->data_list.size()-1;
+			Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(scn->data_list.size());
+			Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->data_list[index].V.colwise().mean()[0] ,
+				scn->data_list[index].V.colwise().maxCoeff()[1], scn->data_list[index].V.colwise().mean()[2],1);
+			Eigen::Vector3f tip_location =tt.head(3);
+			cout << tip_location << endl;
 			break;
 		}
 		case '1':
@@ -244,7 +279,8 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		}
 		case ' ':
 		{
-			preDraw(rndr, scn);
+			scn->ik_flag = !scn->ik_flag;
+			rndr->ik_solver();
 			break;
 		}
 		case '[':
@@ -254,11 +290,73 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 			break;
 		}
 		case ';':
-			scn->data().show_vertid = !scn->data().show_vertid;
+			if (scn->selected_data_index >= 0)
+				scn->data().show_vertid = !scn->data().show_vertid;
 			break;
 		case ':':
-			scn->data().show_faceid = !scn->data().show_faceid;
+			if (scn->selected_data_index >= 0)
+				scn->data().show_faceid = !scn->data().show_faceid;
 			break;
+		case 'p':
+		case 'P':
+			if (scn->selected_data_index > 0)
+				scn->data().PrintRotation();
+			break;
+		case 'D':
+		case 'd': 
+		{
+			Eigen::Matrix4f ball_pos = scn->data_list[0].MakeTrans();
+			Eigen::Vector3f ball_center = ball_pos.col(3).head(3);
+			cout << ball_center << endl;
+			break; 
+		}
+		case GLFW_KEY_UP:
+		{
+			if (scn->selected_data_index < 0) {
+				scn->MyRotate(Eigen::Vector3f(0, 1, 0), 0.1);
+			}
+			else if(scn->selected_data_index<2){
+				scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(0,1, 0), 0.1);
+			}
+			else
+			{
+				scn->data_list[scn->selected_data_index].RotInSys(Eigen::Vector3f(0, 1, 0), 0.1);
+			}
+			break; 
+		}
+		case GLFW_KEY_DOWN:
+		{
+
+			if (scn->selected_data_index < 0) {
+				scn->MyRotate(Eigen::Vector3f(0, 1, 0), -0.1);
+			}
+			else if (scn->selected_data_index < 2) {
+				scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(0, 1, 0), -0.1);
+			}
+			else
+				scn->data_list[scn->selected_data_index].RotInSys(Eigen::Vector3f(0, 1, 0), -0.1);
+			break;
+		}
+		case GLFW_KEY_LEFT:
+		{
+			if (scn->selected_data_index < 0) {
+				scn->MyRotate(Eigen::Vector3f(1, 0, 0), -0.1);
+			}
+			else
+			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1,0,0), -0.1);
+			break;
+		}
+		case GLFW_KEY_RIGHT:
+		{
+			if (scn->selected_data_index < 0) {
+				scn->MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);
+			}
+			else
+			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);
+			break;
+		}
+		
+
 		default: break;//do nothing
 		}
 }

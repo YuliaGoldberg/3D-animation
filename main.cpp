@@ -15,9 +15,11 @@ int main(int argc, char *argv[])
   viewer.load_meshes_from_file("configuration.txt");
   //viewer.load_mesh_from_file("C:\\Users\\Guyp\\Documents\\Ass3D\\p1\\tutorial\\data\\cube.obj");
   //viewer.load_mesh_from_file("C:\\Users\\Guyp\\Documents\\Ass3D\\p1\\tutorial\\data\\bunny.off");
-  viewer.initEdges2();
+  
+  viewer.initEdges3();
   Init(*disp);
   renderer.init(&viewer);
+  viewer.MyScale(Eigen::Vector3f(0.2, 0.2, 0.2));
   
   disp->SetRenderer(&renderer);
   disp->launch_rendering(true);

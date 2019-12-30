@@ -61,7 +61,13 @@ namespace glfw
 		  vector<Eigen::Matrix4d> Qs;
 		  vector<PriorityQueue::iterator > Qit;
 	  };
-	  
+      
+      struct linkInfo
+      {
+          int prev;
+          double cylinder_length;
+         // Eigen::Vector3f topCylinder;
+      };
     // UI Enumerations
    // enum class MouseButton {Left, Middle, Right};
    // enum class MouseMode { None, Rotation, Zoom, Pan, Translation} mouse_mode;
@@ -138,7 +144,11 @@ namespace glfw
     IGL_INLINE size_t mesh_index(const int id) const;
 	bool new_collapse_edge(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXi& E, Eigen::VectorXi& EMAP, Eigen::MatrixXi& EF, Eigen::MatrixXi& EI, vector<vector<int>>& VF, vector<vector<int>>& VI, Eigen::MatrixXd& C, std::set<std::pair<double, int>>& Q, vector<Eigen::Matrix4d>& Qs, std::vector<std::set<std::pair<double, int>>::iterator>& Qit);
 	void initEdges();
-	void initEdges2();
+	//void initEdges2();
+    void initEdges3();
+    Eigen::Matrix4f CalcParentsTrans(int index);
+    Eigen::Matrix3f CalcParentsInverse(int index);
+    double Scale(int index);
 	Eigen::Matrix4d initRp(double d, Eigen::Vector3d normal);
 	
 public:
@@ -152,7 +162,8 @@ public:
 	
 	void minErrorcost(double& cost,  Eigen::RowVectorXd &p, const Eigen::Vector3d v1, const Eigen::Vector3d v2, const Eigen::Matrix4d q1, const Eigen::Matrix4d q2);
     std::vector<ViewerData> data_list;
-	
+	std::vector<linkInfo> data_list_indices;
+    bool ik_flag = false;
     size_t selected_data_index;
     int next_data_id;
 	vector<InfoStruct> data_list2;

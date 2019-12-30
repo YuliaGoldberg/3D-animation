@@ -36,7 +36,7 @@ next_core_id(2)
 
 }
 
-IGL_INLINE void Renderer::draw( GLFWwindow* window)
+IGL_INLINE void Renderer::draw(GLFWwindow* window)
 {
 	using namespace std;
 	using namespace Eigen;
@@ -46,12 +46,12 @@ IGL_INLINE void Renderer::draw( GLFWwindow* window)
 
 	int width_window, height_window;
 	glfwGetWindowSize(window, &width_window, &height_window);
-	
+
 	auto highdpi_tmp = (width_window == 0 || width == 0) ? highdpi : (width / width_window);
 
 	if (fabs(highdpi_tmp - highdpi) > 1e-8)
 	{
-		post_resize(window,width, height);
+		post_resize(window, width, height);
 		highdpi = highdpi_tmp;
 	}
 
@@ -60,17 +60,25 @@ IGL_INLINE void Renderer::draw( GLFWwindow* window)
 		core.clear_framebuffers();
 	}
 
+
 	for (auto& core : core_list)
 	{
+
 		for (auto& mesh : scn->data_list)
 		{
 			if (mesh.is_visible & core.id)
 			{
-				core.draw(scn->MakeTrans(),mesh);
-			}
-		}
-	}
+				Eigen::Matrix4f cal = scn->MakeTrans() * scn->CalcParentsTrans(mesh.id);
+				core.draw(cal, mesh);
 
+			}
+
+		}
+
+
+
+
+	}
 }
 
 void Renderer::SetScene(igl::opengl::glfw::Viewer* viewer)
@@ -99,15 +107,31 @@ void Renderer::MouseProcessing(int button)
 	
 	if (button == 1)
 	{
-
-		scn->data().MyTranslate(Eigen::Vector3f(-xrel / 2000.0f, 0, 0));
-		scn->data().MyTranslate(Eigen::Vector3f(0,yrel / 2000.0f,0));
+		if ((int)scn->selected_data_index > 1) {
+			scn->data_list[1].MyTranslate(Eigen::Vector3f(-xrel / 200.0f, 0, 0));
+			scn->data_list[1].MyTranslate(Eigen::Vector3f(0, yrel / 200.0f, 0));
+		}
+		else if (scn->selected_data_index ==0|| scn->selected_data_index == 1) {
+			scn->data().MyTranslate(Eigen::Vector3f(-xrel / 200.0f, 0, 0));
+			scn->data().MyTranslate(Eigen::Vector3f(0, yrel / 200.0f, 0));
+		}
+		else {
+			scn->MyTranslate(Eigen::Vector3f(-xrel / 200.0f, 0, 0));
+			scn->MyTranslate(Eigen::Vector3f(0, yrel / 200.0f, 0));
+		}
 		
 	}
 	else
 	{
-		scn->data().MyRotate(Eigen::Vector3f(1,0,0),xrel / 180.0f);
-		scn->data().MyRotate(Eigen::Vector3f(0, 0,1),yrel / 180.0f);
+		if (scn->selected_data_index == -1) {
+			scn->MyRotate(Eigen::Vector3f(1, 0, 0), xrel / 180.0f);
+			scn->MyRotate(Eigen::Vector3f(0, 0, 1), yrel / 180.0f);
+		
+		}
+		else {
+			scn->data().MyRotate(Eigen::Vector3f(1, 0, 0), xrel / 180.0f);
+			scn->data().MyRotate(Eigen::Vector3f(0, 0, 1), yrel / 180.0f);
+		}
 	}
 	
 }
@@ -128,7 +152,7 @@ double Renderer::Picking2(double newx, double newy)
 	Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
 	igl::look_at(core().camera_eye, core().camera_center, core().camera_up, view);
 	view = view * (core().trackball_angle * Eigen::Scaling(core().camera_zoom * core().camera_base_zoom)
-		* Eigen::Translation3f(core().camera_translation + core().camera_base_translation)).matrix() * scn->MakeTrans() * scn->data().MakeTrans();
+		* Eigen::Translation3f(core().camera_translation + core().camera_base_translation)).matrix() * scn->MakeTrans() *scn->CalcParentsTrans(scn->selected_data_index) *scn->data().MakeTrans() ;
 	if (igl::unproject_onto_mesh(Eigen::Vector2f(x, y), view,
 		core().proj, core().viewport, scn->data().V, scn->data().F, fid, bc))
 		{
@@ -137,8 +161,8 @@ double Renderer::Picking2(double newx, double newy)
 			p2 = scn->data().F.row(fid)[1];
 			p3 = scn->data().F.row(fid)[2];
 			Eigen::Vector3f v1(scn->data().V.row(p1)[0], scn->data().V.row(p1)[1], scn->data().V.row(p1)[2]);
-			Eigen::Vector3f v2(scn->data().V.row(p1)[0], scn->data().V.row(p1)[1], scn->data().V.row(p1)[2]);
-			Eigen::Vector3f v3(scn->data().V.row(p1)[0], scn->data().V.row(p1)[1], scn->data().V.row(p1)[2]);
+			Eigen::Vector3f v2(scn->data().V.row(p2)[0], scn->data().V.row(p2)[1], scn->data().V.row(p2)[2]);
+			Eigen::Vector3f v3(scn->data().V.row(p3)[0], scn->data().V.row(p3)[1], scn->data().V.row(p3)[2]);
 			Eigen::Vector3f b(v1[0]*bc[0]+v2[0]*bc[1]+v3[0]*bc[2], v1[1] * bc[0] + v2[1] * bc[1] + v3[1] * bc[2], v1[2] * bc[0] + v2[2] * bc[1] + v3[2] * bc[2]);
 			Eigen::Vector4f a(4);
 			a << b, 1;
@@ -267,7 +291,70 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 		selected_core_index = core_list.size() - 1;
 		return core_list.back().id;
 	}
+	void Renderer::animate(GLFWwindow* window) {
+		
+	}
+	Eigen::Vector3f Renderer::Calc_E() {
+		int index = scn->data_list.size() - 1;
+		Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(scn->data_list.size());
+		Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->data_list[index].V.colwise().mean()[0],
+			scn->data_list[index].V.colwise().maxCoeff()[1], scn->data_list[index].V.colwise().mean()[2], 1);
+		return tt.head(3);
+	}
+	Eigen::Vector3f Renderer::Calc_R(int index) {
+		
+		Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(index+1);
+		Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->data_list[index].V.colwise().mean()[0],
+			scn->data_list[index].V.colwise().minCoeff()[1], scn->data_list[index].V.colwise().mean()[2], 1);
+		return tt.head(3);
+	}
+	void Renderer::ik_solver() {
+		
+		
+		Eigen::Vector3f D = scn->data_list[0].MakeTrans().col(3).head(3);
+		Eigen::Vector3f Base = Calc_R(1);
+		Eigen::Vector3f E = Calc_E();
+		double EDdistance = (D - E).norm();
+		double BaseDdistance = (D-Base).norm();
+		double max_Arm_length = 1.6 * scn->data_list_indices.size();
+		if (BaseDdistance > max_Arm_length) {
+			cout << "cannot reach" << endl;
+			scn->ik_flag = false;
+			return;
+		}
+		if(EDdistance<0.1){
+			scn->ik_flag = false;
+			return;
+		}
 
+
+			for (int i = scn->data_list.size() - 1; i > 0; i--) {
+				
+				 
+				Eigen::Vector3f R = Calc_R(i);
+				
+				Eigen::Vector3f RD = (D - R).normalized();
+				Eigen::Vector3f RE = (E - R).normalized();
+				float pre_angle = RE.dot(RD);
+				if (pre_angle > 1) {
+					pre_angle = 1;
+				}
+				else if (pre_angle < -1)
+					pre_angle = -1;
+
+				float angle = acosf(pre_angle);
+
+				Eigen::Vector3f cross = RE.cross(RD).normalized();
+				Eigen::Vector3f crossInverse = scn->CalcParentsInverse(scn->data_list.size()) * cross;
+				if (EDdistance > 0.5)
+					angle = angle / 10;
+				scn->data_list[i].MyRotate(crossInverse, angle);
+				E = Calc_E();
+				EDdistance = (D - E).norm();
+			}
+		
+
+	}
 	//IGL_INLINE void Viewer::select_hovered_core()
 	//{
 	//	int width_window, height_window = 800;
