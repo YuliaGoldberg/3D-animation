@@ -308,6 +308,22 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 			scn->data_list[index].V.colwise().minCoeff()[1], scn->data_list[index].V.colwise().mean()[2], 1);
 		return tt.head(3);
 	}
+	void Renderer::ik_fixer() {
+		for (int i = 1; i < scn->data_list.size(); ++i)
+		{
+			Eigen::Matrix3f rot = scn->data_list[i].GetRotation();
+			float y1 = 0;
+			if(rot.row(1)[1] < 1&& rot.row(1)[1] > -1){
+			
+				y1 = atan2f(rot.row(1)[0], -rot.row(1)[2]);
+			}
+			scn->data_list[i].MyRotate(Eigen::Vector3f(0, 1, 0), -y1);
+			if (scn->data_list.size() > i+1) {
+				scn->data_list[i+1].RotInSys(Eigen::Vector3f(0, 1, 0), y1);
+			}
+			
+		}
+	}
 	void Renderer::ik_solver() {
 		
 		
@@ -320,9 +336,11 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 		if (BaseDdistance > max_Arm_length) {
 			cout << "cannot reach" << endl;
 			scn->ik_flag = false;
+			
 			return;
 		}
 		if(EDdistance<0.1){
+			ik_fixer();
 			scn->ik_flag = false;
 			return;
 		}
@@ -350,7 +368,26 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 					angle = angle / 10;
 				scn->data_list[i].MyRotate(crossInverse, angle);
 				E = Calc_E();
-				EDdistance = (D - E).norm();
+				if (i > 1) {
+
+					Eigen::Vector3f R_tag = Calc_R(i-1);
+					Eigen::Vector3f R_tagR = (R_tag - R).normalized();
+					Eigen::Vector3f RE = (E - R).normalized();
+					pre_angle = RE.dot(R_tagR);
+					if (pre_angle > 1) {
+						pre_angle = 1;
+					}
+					else if (pre_angle < -1)
+						pre_angle = -1;
+
+					float angle2 = acosf(pre_angle);
+					if (angle2 < (M_PI / 6)) {
+						scn->data_list[i].MyRotate(crossInverse, -angle);
+						angle = (M_PI / 6) - angle2;
+						scn->data_list[i].MyRotate(crossInverse, angle);
+					}
+				
+				}
 			}
 		
 

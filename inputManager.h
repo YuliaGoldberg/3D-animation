@@ -280,7 +280,12 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		case ' ':
 		{
 			scn->ik_flag = !scn->ik_flag;
-			rndr->ik_solver();
+			if(scn->ik_flag)
+				rndr->ik_solver();
+			else
+			{
+				rndr->ik_fixer();
+			}
 			break;
 		}
 		case '[':

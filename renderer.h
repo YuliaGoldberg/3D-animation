@@ -92,6 +92,7 @@ public:
 	void animate(GLFWwindow* window);
 	Eigen::Vector3f Calc_E();
 	Eigen::Vector3f Calc_R(int index);
+	void ik_fixer();
 	void ik_solver();
 	inline igl::opengl::glfw::Viewer* GetScene() {
 		return scn;
