@@ -68,8 +68,7 @@ IGL_INLINE void Renderer::draw(GLFWwindow* window)
 		{
 			if (mesh.is_visible & core.id)
 			{
-				Eigen::Matrix4f cal = scn->MakeTrans() * scn->CalcParentsTrans(mesh.id);
-				core.draw(cal, mesh);
+			core.draw(scn->MakeTrans(), mesh);
 
 			}
 
@@ -77,9 +76,11 @@ IGL_INLINE void Renderer::draw(GLFWwindow* window)
 
 
 
-
+		
 	}
 }
+
+
 
 void Renderer::SetScene(igl::opengl::glfw::Viewer* viewer)
 {
@@ -107,17 +108,13 @@ void Renderer::MouseProcessing(int button)
 	
 	if (button == 1)
 	{
-		if ((int)scn->selected_data_index > 1) {
-			scn->data_list[1].MyTranslate(Eigen::Vector3f(-xrel / 200.0f, 0, 0));
-			scn->data_list[1].MyTranslate(Eigen::Vector3f(0, yrel / 200.0f, 0));
-		}
-		else if (scn->selected_data_index ==0|| scn->selected_data_index == 1) {
-			scn->data().MyTranslate(Eigen::Vector3f(-xrel / 200.0f, 0, 0));
-			scn->data().MyTranslate(Eigen::Vector3f(0, yrel / 200.0f, 0));
+		if (scn->selected_data_index ==0|| scn->selected_data_index == 1) {
+			scn->data().MyTranslate(Eigen::Vector3f(-xrel / 1000.0f, 0, 0));
+			scn->data().MyTranslate(Eigen::Vector3f(0, yrel / 1000.0f, 0));
 		}
 		else {
-			scn->MyTranslate(Eigen::Vector3f(-xrel / 200.0f, 0, 0));
-			scn->MyTranslate(Eigen::Vector3f(0, yrel / 200.0f, 0));
+			scn->MyTranslate(Eigen::Vector3f(-xrel / 1000.0f, 0, 0));
+			scn->MyTranslate(Eigen::Vector3f(0, yrel / 1000.0f, 0));
 		}
 		
 	}
@@ -172,7 +169,10 @@ double Renderer::Picking2(double newx, double newy)
 		}
 		return INFINITY;
 }
-
+void Renderer::line_less() {
+	for (int i = 0; i < scn->data_list.size(); ++i)
+		core().toggle(scn->data_list[i].show_lines);
+}
 //previous function
 bool Renderer::Picking(double newx, double newy)
 {
@@ -324,6 +324,7 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 			
 		}
 	}
+	
 	void Renderer::ik_solver() {
 		
 		
@@ -392,6 +393,107 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 		
 
 	}
+
+	bool Renderer::checkCollision(igl::AABB<Eigen::MatrixXd, 3> bunnyA, igl::AABB<Eigen::MatrixXd, 3> bunnyB) {
+		Eigen::Vector3f bunnyAcenter = bunnyA.m_box.center().cast<float>();
+		Eigen::Vector3f bunnyBcenter = bunnyB.m_box.center().cast<float>();
+		Eigen::Vector3f centerC0 = (scn->data_list[0].MakeTrans() * Eigen::Vector4f(bunnyAcenter[0],
+			bunnyAcenter[1], bunnyAcenter[2], 1)).head(3);
+		Eigen::Vector3f centerC1 = (scn->data_list[1].MakeTrans() * Eigen::Vector4f(bunnyBcenter[0],
+			bunnyBcenter[1], bunnyBcenter[2], 1)).head(3);
+		Eigen::Vector3f D = centerC1 - centerC0;
+		Eigen::Vector3f A0 = (scn->data_list[0].GetRotation() * Eigen::Vector3f(1, 0, 0));//Xaxis
+		Eigen::Vector3f A1 = (scn->data_list[0].GetRotation() * Eigen::Vector3f(0, 1, 0));//Yaxis
+		Eigen::Vector3f A2 = (scn->data_list[0].GetRotation() * Eigen::Vector3f(0, 0, 1));//Zaxis
+		Eigen::Vector3f B0 = (scn->data_list[1].GetRotation() * Eigen::Vector3f(1, 0, 0));//Xaxis
+		Eigen::Vector3f B1 = (scn->data_list[1].GetRotation() * Eigen::Vector3f(0, 1, 0));//Yaxis
+		Eigen::Vector3f B2 = (scn->data_list[1].GetRotation() * Eigen::Vector3f(0, 0, 1));//Zaxis
+		Eigen::Vector3f randomPointA = bunnyA.m_box.corner(bunnyA.m_box.BottomLeftFloor).cast<float>();
+		Eigen::Vector3f randomPointB = bunnyB.m_box.corner(bunnyB.m_box.BottomLeftFloor).cast<float>();
+		float a0 = bunnyA.m_box.sizes().cast<float>()[0] / 2;//sqrt(pow(bunnyAcenter[0] - randomPointA[0], 2.));
+		float a1 = bunnyA.m_box.sizes().cast<float>()[1] / 2;//sqrt(pow(bunnyAcenter[1] - randomPointA[1], 2.));
+		float a2 = bunnyA.m_box.sizes().cast<float>()[2] / 2;//sqrt(pow(bunnyAcenter[2] - randomPointA[2], 2.));
+		float b0 = bunnyB.m_box.sizes().cast<float>()[0] / 2;//sqrt(pow(bunnyBcenter[0] - randomPointA[0], 2.));
+		float b1 = bunnyB.m_box.sizes().cast<float>()[1] / 2;//sqrt(pow(bunnyBcenter[1] - randomPointA[1], 2.));
+		float b2 = bunnyB.m_box.sizes().cast<float>()[2] / 2;//sqrt(pow(bunnyBcenter[2] - randomPointA[2], 2.));
+		Eigen::Matrix3f C = scn->data_list[0].GetRotation().inverse() * scn->data_list[1].GetRotation();
+		bool tableCalcAns = tableCalc(A0, A1, A2, a0, a1, a2, B0, B1, B2, b0, b1, b2, C, D);
+		if (!tableCalcAns)
+		{
+			if (bunnyA.is_leaf())
+			{
+				if (bunnyB.is_leaf())
+				{
+					scn->drawBox(bunnyA, 0, Eigen::RowVector3d(0,1,0));
+					scn->drawBox(bunnyB, 1, Eigen::RowVector3d(0,1,0));
+					scn->go_flag = false;
+					scn->collision_happend = true;
+					return true;
+				}
+				else
+				{
+					return checkCollision(bunnyA, *bunnyB.m_left) || checkCollision(bunnyA, *bunnyB.m_right);
+				}
+			}
+			else if (bunnyB.is_leaf())
+			{
+					return checkCollision(*bunnyA.m_left, bunnyB) || checkCollision(*bunnyA.m_right, bunnyB);
+			}
+			else
+			{
+				return checkCollision(*bunnyA.m_left, *bunnyB.m_left) || checkCollision(*bunnyA.m_left, *bunnyB.m_right)|| checkCollision(*bunnyA.m_right, *bunnyB.m_left) || checkCollision(*bunnyA.m_right, *bunnyB.m_right);
+			}
+			
+		}
+		else//no Collision
+		{
+			return false;
+		}
+	}
+
+	bool Renderer::tableCalc(Eigen::Vector3f A0, Eigen::Vector3f A1, Eigen::Vector3f A2, float a0, float a1, float a2, Eigen::Vector3f B0, Eigen::Vector3f B1, Eigen::Vector3f B2, float b0, float b1, float b2, Eigen::Matrix3f C, Eigen::Vector3f D) {
+		return (a0 + (b0 * abs(C.row(0)[0]) + b1 * abs(C.row(0)[1]) + b2 * abs(C.row(0)[2])) < abs(A0.dot(D))) ||
+			(a1 + (b0 * abs(C.row(1)[0]) + b1 * abs(C.row(1)[1]) + b2 * abs(C.row(1)[2])) < abs(A1.dot(D))) ||
+			(a2 + (b0 * abs(C.row(2)[0]) + b1 * abs(C.row(2)[1]) + b2 * abs(C.row(2)[2])) < abs(A2.dot(D))) ||
+			(b0 + (a0 * abs(C.row(0)[0]) + a1 * abs(C.row(1)[0]) + a2 * abs(C.row(2)[0])) < abs(B0.dot(D))) ||
+			(b1 + (a0 * abs(C.row(0)[1]) + a1 * abs(C.row(1)[1]) + a2 * abs(C.row(2)[1])) < abs(B1.dot(D))) ||
+			(b2 + (a0 * abs(C.row(0)[2]) + a1 * abs(C.row(1)[2]) + a2 * abs(C.row(2)[2])) < abs(B2.dot(D))) ||
+			(((a1 * abs(C.row(2)[0]) + a2 * abs(C.row(1)[0])) + (b1 * abs(C.row(0)[2]) + b2 * abs(C.row(0)[1]))) < abs(C.row(1)[0] * A2.dot(D) - C.row(2)[0] * A1.dot(D))) ||
+			(((a1 * abs(C.row(2)[1]) + a2 * abs(C.row(1)[1])) + (b0 * abs(C.row(0)[2]) + b2 * abs(C.row(0)[0]))) < abs(C.row(1)[1] * A2.dot(D) - C.row(2)[1] * A1.dot(D))) ||
+			(((a1 * abs(C.row(2)[2]) + a2 * abs(C.row(1)[2])) + (b0 * abs(C.row(0)[1]) + b1 * abs(C.row(0)[0]))) < abs(C.row(1)[2] * A2.dot(D) - C.row(2)[2] * A1.dot(D))) ||
+
+			(((a0 * abs(C.row(2)[0]) + a2 * abs(C.row(0)[0])) + (b1 * abs(C.row(1)[2]) + b2 * abs(C.row(1)[1]))) < abs(C.row(2)[0] * A0.dot(D) - C.row(0)[0] * A2.dot(D))) ||
+			(((a0 * abs(C.row(2)[1]) + a2 * abs(C.row(0)[1])) + (b0 * abs(C.row(1)[2]) + b2 * abs(C.row(1)[0]))) < abs(C.row(2)[1] * A0.dot(D) - C.row(0)[1] * A2.dot(D))) ||
+			(((a0 * abs(C.row(2)[2]) + a2 * abs(C.row(0)[2])) + (b0 * abs(C.row(1)[1]) + b1 * abs(C.row(1)[0]))) < abs(C.row(2)[2] * A0.dot(D) - C.row(0)[2] * A2.dot(D))) ||
+
+			(((a0 * abs(C.row(1)[0]) + a1 * abs(C.row(0)[0])) + (b1 * abs(C.row(2)[2]) + b2 * abs(C.row(2)[1]))) < abs(C.row(0)[0] * A1.dot(D) - C.row(1)[0] * A0.dot(D))) ||
+			(((a0 * abs(C.row(1)[1]) + a2 * abs(C.row(0)[1])) + (b0 * abs(C.row(2)[2]) + b2 * abs(C.row(2)[0]))) < abs(C.row(0)[1] * A1.dot(D) - C.row(1)[1] * A0.dot(D))) ||
+			(((a0 * abs(C.row(1)[2]) + a2 * abs(C.row(0)[2])) + (b0 * abs(C.row(2)[1]) + b1 * abs(C.row(2)[0]))) < abs(C.row(0)[2] * A1.dot(D) - C.row(1)[2] * A0.dot(D)));   
+	}
+
+	void Renderer::go_Bunny() {
+		switch (arrow)
+		{
+		case 0: //left
+			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(-0.01, 0, 0));
+			break;
+		case 1:	//right
+			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(0.01, 0, 0));
+			break;
+		case 2:	//up
+			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(0, 0.01, 0));
+			break;
+		case 3:	//down
+			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(0, -0.01, 0));
+			break;
+		default:
+			break;
+		}
+		checkCollision(scn->data_list[0].tree, scn->data_list[1].tree);
+		
+
+	}
+
 	//IGL_INLINE void Viewer::select_hovered_core()
 	//{
 	//	int width_window, height_window = 800;

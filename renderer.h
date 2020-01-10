@@ -4,7 +4,7 @@
 #include <functional>
 #include <igl/opengl/ViewerCore.h>
 #include <igl/opengl/glfw/Viewer.h>
-
+#include <igl/AABB.h>
 struct GLFWwindow;
 
 class Renderer 
@@ -41,7 +41,7 @@ public:
 	void* callback_key_pressed_data;
 	void* callback_key_down_data;
 	void* callback_key_up_data;
-
+	int arrow = 0;
 
 	////////////////////////////
 	// Multi-viewport methods //
@@ -83,6 +83,7 @@ public:
 	// Callbacks
 	 bool Picking(double x, double y);
 	 double Picking2(double x, double y);
+	 void line_less();
 	IGL_INLINE bool key_pressed(unsigned int unicode_key, int modifier);
 	IGL_INLINE void resize(GLFWwindow* window,int w, int h); // explicitly set window size
 	IGL_INLINE void post_resize(GLFWwindow* window, int w, int h); // external resize due to user interaction
@@ -94,6 +95,9 @@ public:
 	Eigen::Vector3f Calc_R(int index);
 	void ik_fixer();
 	void ik_solver();
+	bool checkCollision(igl::AABB<Eigen::MatrixXd, 3> A, igl::AABB<Eigen::MatrixXd, 3> B);
+	bool tableCalc(Eigen::Vector3f A0, Eigen::Vector3f A1, Eigen::Vector3f A2, float a0, float a1, float a2, Eigen::Vector3f B0, Eigen::Vector3f B1, Eigen::Vector3f B2, float b0, float b1, float b2, Eigen::Matrix3f C, Eigen::Vector3f D);
+	void go_Bunny();
 	inline igl::opengl::glfw::Viewer* GetScene() {
 		return scn;
 	}

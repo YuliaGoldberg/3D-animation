@@ -20,9 +20,9 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 	  bool found = false;
 	  float min_distanc = INFINITY;
 	  int i = 0, savedIndx = scn->selected_data_index;
-	  if((int)scn->selected_data_index>=0){
-		  scn->data().set_colors(Eigen::RowVector3d(135./255.,255./255., 255. /255.));
-	  }
+	  
+		scn->data().set_colors(Eigen::RowVector3d(135./255.,255./255., 255. /255.));
+	  
 	  for (; i < scn->data_list.size();i++)
 	  { 
 		  scn->selected_data_index = i;
@@ -42,9 +42,11 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 		  scn->selected_data_index = -1;
 	  }
 	  else {
+		  scn->last_selected_data_index = scn->selected_data_index;
 		  std::cout << "found " << savedIndx << std::endl;
-		  scn->data().set_colors(Eigen::RowVector3d(135. / 255., 0 / 255., 255. / 255.));
+		 
 	  }
+	  scn->data_list[scn->last_selected_data_index].set_colors(Eigen::RowVector3d(135. / 255., 0 / 255., 255. / 255.));
 	  rndr->UpdatePosition(x2, y2);
 	 
   }
@@ -222,6 +224,7 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 	else if(action == GLFW_PRESS || action == GLFW_REPEAT)
 		switch (key)
 		{
+		
 		case 'A':
 		case 'a':
 		{
@@ -279,13 +282,10 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		}
 		case ' ':
 		{
-			scn->ik_flag = !scn->ik_flag;
-			if(scn->ik_flag)
-				rndr->ik_solver();
-			else
-			{
-				rndr->ik_fixer();
+			if (scn->collision_happend) {
+				scn->undrawBox();
 			}
+			scn->go_flag = !scn->go_flag;
 			break;
 		}
 		case '[':
@@ -317,7 +317,10 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		}
 		case GLFW_KEY_UP:
 		{
-			if (scn->selected_data_index < 0) {
+			
+				rndr->arrow = 2;
+			
+		/*	if (scn->selected_data_index < 0) {
 				scn->MyRotate(Eigen::Vector3f(0, 1, 0), 0.1);
 			}
 			else if(scn->selected_data_index<2){
@@ -326,12 +329,14 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 			else
 			{
 				scn->data_list[scn->selected_data_index].RotInSys(Eigen::Vector3f(0, 1, 0), 0.1);
-			}
+			}*/
+
 			break; 
 		}
 		case GLFW_KEY_DOWN:
 		{
-
+				rndr->arrow = 3;
+			/*
 			if (scn->selected_data_index < 0) {
 				scn->MyRotate(Eigen::Vector3f(0, 1, 0), -0.1);
 			}
@@ -340,24 +345,27 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 			}
 			else
 				scn->data_list[scn->selected_data_index].RotInSys(Eigen::Vector3f(0, 1, 0), -0.1);
+				*/
 			break;
 		}
 		case GLFW_KEY_LEFT:
 		{
-			if (scn->selected_data_index < 0) {
+				rndr->arrow = 0;
+			/*if (scn->selected_data_index < 0) {
 				scn->MyRotate(Eigen::Vector3f(1, 0, 0), -0.1);
 			}
 			else
-			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1,0,0), -0.1);
+			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1,0,0), -0.1);*/
 			break;
 		}
 		case GLFW_KEY_RIGHT:
 		{
-			if (scn->selected_data_index < 0) {
+				rndr->arrow = 1;
+			/*if (scn->selected_data_index < 0) {
 				scn->MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);
 			}
 			else
-			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);
+			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);*/
 			break;
 		}
 		

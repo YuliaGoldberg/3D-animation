@@ -7,6 +7,7 @@
 // obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "Viewer.h"
+
 #include <igl/circulation.h>
 //#include <chrono>
 #include <thread>
@@ -121,7 +122,7 @@ namespace igl
 				std::cout << usage << std::endl;
 #endif
 			}
-			/* 
+			/*
 			<<<<<<<<<<<<<<<<<<<<<<<new Function>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 			*/
 			void Viewer::initEdges()
@@ -130,12 +131,12 @@ namespace igl
 				data_list2.resize(data_list.size());
 				int index = 0;
 				for (ptr = data_list.begin(); ptr != data_list.end(); ++ptr) {
-					
-			
+
+
 					edge_flaps(ptr->F, data_list2[index].E, data_list2[index].EMAP, data_list2[index].EF, data_list2[index].EI);
 					data_list2[index].Qs.resize(ptr->V.rows());
 
-					
+
 					data_list2[index].Qit.resize(data_list2[index].E.rows());
 					data_list2[index].C.resize(data_list2[index].E.rows(), ptr->V.cols());
 					data_list2[index].Q.clear();
@@ -147,7 +148,7 @@ namespace igl
 						data_list2[index].C.row(e) = p;
 						data_list2[index].Qit[e] = data_list2[index].Q.insert(std::pair<double, int>(cost, e)).first;
 					}
-					
+
 					++index;
 				}
 			}
@@ -170,17 +171,17 @@ namespace igl
 						Eigen::Vector3d M = ptr->V.colwise().maxCoeff();
 
 						Eigen::MatrixXd V_box(7, 3);
-						double 
-							
+						double
+
 							X = (M(0) + m(0)) / 2;
 						double centerX = (M(0) + m(0)) / 2;
 						double centerZ = (M(2) + m(2)) / 2;
 						double link_length = M(1) - m(1);
 
 						V_box <<
-							centerX, m(1), centerZ, //0-lower y 
+							centerX, m(1), centerZ, //0-lower y
 							centerX, M(1), centerZ, //1-center of axis's
-							centerX, M(1) + link_length, centerZ,//2-higher y 
+							centerX, M(1) + link_length, centerZ,//2-higher y
 							centerX + link_length, M(1), centerZ, //3- higher x
 							centerX - link_length, M(1), centerZ,//4- lower x
 							centerX, M(1), centerZ + link_length, //5-higher z
@@ -209,13 +210,13 @@ namespace igl
 						ptr->line_width = 1;
 
 					}
-				
+
 					edge_flaps(ptr->F, data_list2[index].E, data_list2[index].EMAP, data_list2[index].EF, data_list2[index].EI);
 					vertex_triangle_adjacency(ptr->V, ptr->F, data_list2[index].VF, data_list2[index].VI);
 					data_list2[index].Qit.resize(data_list2[index].E.rows());
 					data_list2[index].C.resize(data_list2[index].E.rows(), ptr->V.cols());
 					data_list2[index].Qs.resize(ptr->V.rows());
-					
+
 					for (auto& v : data_list2[index].Qs) {
 						v = Eigen::Matrix4d::Zero();
 					}
@@ -242,9 +243,9 @@ namespace igl
 						Eigen::Matrix4d q2 = data_list2[index].Qs[v_index];
 						//v1 += v2;
 						//q1 += q2;
-						
+
 						minErrorcost(cost, p, v1, v2, q1, q2);
-						
+
 						data_list2[index].C.row(e) = p;
 						data_list2[index].Qit[e] = data_list2[index].Q.insert(std::pair<double, int>(cost, e)).first;
 
@@ -273,7 +274,7 @@ namespace igl
 						double centerZ = (M(2) + m(2)) / 2;
 						double link_length = M(1) - m(1);
 						ptr->SetCenterOfRotation(Eigen::Vector3d(data_list[index].V.colwise().mean()[0], data_list[index].V.colwise().minCoeff()[1], data_list[index].V.colwise().mean()[0]));
-						if(index==1)ptr->MyTranslate(Eigen::Vector3f(0, 0, 0));
+						if (index == 1)ptr->MyTranslate(Eigen::Vector3f(0, 0, 0));
 						else
 						{
 							ptr->MyTranslate(Eigen::Vector3f(0, link_length, 0));
@@ -307,10 +308,10 @@ namespace igl
 								V_box.row(E_box(i, 1)),
 								Eigen::RowVector3d(1, 0, 0)
 							);*/
-	//					if(index == 1)
-	//						ptr->MyTranslate(Eigen::Vector3f(0, 0, 0));
-	//					else
-						
+							//					if(index == 1)
+							//						ptr->MyTranslate(Eigen::Vector3f(0, 0, 0));
+							//					else
+
 						ptr->show_overlay_depth = false;
 						ptr->point_size = 5;
 						ptr->line_width = 1;
@@ -319,17 +320,111 @@ namespace igl
 						data_list_indices[index - 1].cylinder_length = link_length;
 						//data_list_indices[index - 1].topCylinder << centerX, M(1)*index, centerZ;
 						Eigen::Vector4f vec(0, 0, 0, 1);
-						
+
 						//
-					
+
 					}
 					index++;
 				}
 				data_list_indices[0].prev = -1;//the first link has no father
+
+
+			}
+		
+
+			void Viewer::initEdges4()
+			{
 				
-				
+				int index = 0;
+				vector<ViewerData>::iterator ptr;
+				for (ptr = data_list.begin(); ptr != data_list.end(); ++ptr) {
+					
+					ptr->tree.init(ptr->V, ptr->F);
+					ptr->set_colors(Eigen::RowVector3d(135. / 255., 255. / 255., 255. / 255.));
+					drawBox(ptr->tree,index, Eigen::RowVector3d(0,0,1));
+					if (index == 0) {
+						ptr->MyTranslate(Eigen::Vector3f(-0.25, 0.1, 0));
+					}
+					else {
+						ptr->MyTranslate(Eigen::Vector3f(0.25, 0.1, 0));
+					}
+					ptr->show_overlay_depth = false;
+					ptr->line_width = 2;
+					ptr->point_size = 2;
+					index++;
+				}
 			}
 
+			void Viewer::drawBox( AABB<Eigen::MatrixXd, 3> node,int index, Eigen::RowVector3d edgesColor) {
+				Eigen::MatrixXd V_box(8, 3);
+				Eigen::Vector3d blf = node.m_box.corner(node.m_box.BottomLeftFloor);
+				Eigen::Vector3d brf = node.m_box.corner(node.m_box.BottomRightFloor);
+				Eigen::Vector3d tlf = node.m_box.corner(node.m_box.TopLeftFloor);
+				Eigen::Vector3d trf = node.m_box.corner(node.m_box.TopRightFloor);
+				Eigen::Vector3d blc = node.m_box.corner(node.m_box.BottomLeftCeil);
+				Eigen::Vector3d brc = node.m_box.corner(node.m_box.BottomRightCeil);
+				Eigen::Vector3d tlc = node.m_box.corner(node.m_box.TopLeftCeil);
+				Eigen::Vector3d trc = node.m_box.corner(node.m_box.TopRightCeil);
+				data_list[index].old_points_size = data_list[index].points.rows();
+				data_list[index].old_lines_size = data_list[index].lines.rows();
+				V_box << blf[0], blf[1], blf[2],//0
+					brf[0], brf[1], brf[2],//1
+					tlf[0], tlf[1], tlf[2],//2
+					trf[0], trf[1], trf[2],//3
+					blc[0], blc[1], blc[2],//4
+					brc[0], brc[1], brc[2],//5	
+					tlc[0], tlc[1], tlc[2],//6
+					trc[0], trc[1], trc[2];//7
+					
+				Eigen::MatrixXi E_box(12, 2);
+				E_box <<
+					0, 1,//BottomLeftFloor,BottomRightFloor
+					2, 3,//TopLeftFloor,TopRightFloor
+					4, 5,//BottomLeftCeil,BottomRightCeil
+					6, 7,//TopLeftCeil,TopRightCeil
+					0, 2,//BottomLeftFloor,TopLeftFloor
+					1, 3,//BottomRightFloor,TopRightFloor
+					4, 6,//BottomLeftCeil,TopLeftCeil
+					5, 7,//BottomRightCeil,TopRightCeil
+					2, 6,//TopLeftFloor,TopLeftCeil
+					0, 4,//BottomLeftFloor,BottomLeftCeil
+					3, 7,// TopRightFloor, TopRightCeil
+					1, 5;//BottomRightFloor,BottomRightCeil
+
+				data_list[index].add_points(V_box, edgesColor);
+				
+				for (int i = 0; i < 12; i++) {
+					data_list[index].add_edges(V_box.row(E_box(i, 0)), V_box.row(E_box(i, 1)), edgesColor);
+				}
+				
+			}
+			void Viewer::undrawBox()
+			{
+				if (collision_happend) {
+					for (int index = 0; index < 2; ++index) {
+						unsigned int old_rows = data_list[index].old_points_size;
+						unsigned int old_lines = data_list[index].old_lines_size;
+						Eigen::MatrixXd temp(old_rows,3);
+						Eigen::MatrixXd temp2(old_rows, 3);
+						Eigen::MatrixXd p1(old_lines, 3);
+						Eigen::MatrixXd p2(old_lines, 3);
+						Eigen::MatrixXd ce(old_lines, 3);
+						temp = data_list[index].points.block(0, 0, old_rows, 3);
+						temp2 = data_list[index].points.block(0, 3, old_rows, 3);
+						p1 = data_list[index].lines.block(0, 0, old_lines, 3);
+						p2 = data_list[index].lines.block(0, 3, old_lines, 3);
+						ce = data_list[index].lines.block(0, 6, old_lines, 3);
+						
+						data_list[index].set_points(temp, temp2);
+
+						data_list[index].lines.resize(0, 9);
+						data_list[index].add_edges(p1, p2, ce);
+				
+						collision_happend = false;
+					}
+				}
+				
+			}
 
 			Eigen::Matrix4f Viewer::CalcParentsTrans(int index) {
 				if (index < 2) {
@@ -391,12 +486,12 @@ namespace igl
 				std::ifstream file(mesh_file_name_string);
 				if (file.is_open()) {
 					std::string line;
-					int times = 1;
+					//int times = 1;
 					while (getline(file,line))
 					{
-						for(int i = 0;i<times;++i )
-							load_mesh_from_file(line);
-						times = 4;
+						
+						load_mesh_from_file(line);
+						
 					}
 					file.close();
 				}
@@ -583,8 +678,12 @@ namespace igl
 			{
 				assert(!data_list.empty() && "data_list should never be empty");
 				int index;
-				if (mesh_id == -1)
-					index = selected_data_index;
+				if (mesh_id == -1) {
+					if (selected_data_index != -1)
+						index = selected_data_index;
+					else
+						index = last_selected_data_index;
+				}
 				else
 					index = mesh_index(mesh_id);
 

@@ -14,7 +14,7 @@
 #define IGL_COLLAPSE_EDGE_NULL 0
 #include<iostream> 
 #include<algorithm> // for heap operations
-
+#include "igl/AABB.h"
 #include "../../igl_inline.h"
 #include "../MeshGL.h"
 //#include "../ViewerCore.h"
@@ -47,6 +47,7 @@ namespace glfw
   class Viewer : public Movable
   {
   public:
+     
 	  typedef set<pair<double, int> > PriorityQueue;
 	  struct InfoStruct
 	  {
@@ -140,12 +141,18 @@ namespace glfw
     IGL_INLINE bool erase_mesh(const size_t index);
 
     // Retrieve mesh index from its unique identifier
-    // Returns 0 if not found
+    // Returns 0 if not fou
     IGL_INLINE size_t mesh_index(const int id) const;
 	bool new_collapse_edge(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXi& E, Eigen::VectorXi& EMAP, Eigen::MatrixXi& EF, Eigen::MatrixXi& EI, vector<vector<int>>& VF, vector<vector<int>>& VI, Eigen::MatrixXd& C, std::set<std::pair<double, int>>& Q, vector<Eigen::Matrix4d>& Qs, std::vector<std::set<std::pair<double, int>>::iterator>& Qit);
 	void initEdges();
 	//void initEdges2();
     void initEdges3();
+    void initEdges4();
+
+    void drawBox(AABB<Eigen::MatrixXd, 3> node,int index, Eigen::RowVector3d edgesColor);
+
+    void undrawBox();
+
     Eigen::Matrix4f CalcParentsTrans(int index);
     Eigen::Matrix3f CalcParentsInverse(int index);
     double Scale(int index);
@@ -164,7 +171,13 @@ public:
     std::vector<ViewerData> data_list;
 	std::vector<linkInfo> data_list_indices;
     bool ik_flag = false;
+    bool go_flag = false;
+    bool collision_happend = false;
+    size_t old_poits_size1;
+    size_t old_poits_size0;
+
     size_t selected_data_index;
+    size_t last_selected_data_index = 0;
     int next_data_id;
 	vector<InfoStruct> data_list2;
 
