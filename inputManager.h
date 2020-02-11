@@ -1,59 +1,8 @@
 #pragma once
 #include "igl/opengl/glfw/Display.h"
-#include <igl/shortest_edge_and_midpoint.h>
-#include <igl/collapse_edge.h>
-#include <igl\edge_flaps.cpp>
-#include <igl\vertex_triangle_adjacency.h>
-#include <igl\look_at.h>
+//#include <Windows.h>
+//#include <mmsystem.h>
 
-
-static void glfw_mouse_press(GLFWwindow* window, int button, int action, int modifier)
-{
-
-  Renderer* rndr = (Renderer*) glfwGetWindowUserPointer(window);
-  
-  if (action == GLFW_PRESS)
-  {
-	  double x2, y2;
-	  glfwGetCursorPos(window, &x2, &y2);
-	  igl::opengl::glfw::Viewer* scn = rndr->GetScene();
-	  bool found = false;
-	  float min_distanc = INFINITY;
-	  int i = 0, savedIndx = scn->selected_data_index;
-	  
-		scn->data().set_colors(Eigen::RowVector3d(135./255.,255./255., 255. /255.));
-	  
-	  for (; i < scn->data_list.size();i++)
-	  { 
-		  scn->selected_data_index = i;
-		  float distace = rndr->Picking2(x2, y2);
-		  if(distace<min_distanc){
-			  min_distanc = distace;
-			  found = true;
-				savedIndx = i;
-		  }
-		  
-
-	  }
-	  scn->selected_data_index = savedIndx;
-	  if(!found)
-	  {
-		  std::cout << "not found " << std::endl;
-		  scn->selected_data_index = -1;
-	  }
-	  else {
-		  scn->last_selected_data_index = scn->selected_data_index;
-		  std::cout << "found " << savedIndx << std::endl;
-		 
-	  }
-	  scn->data_list[scn->last_selected_data_index].set_colors(Eigen::RowVector3d(135. / 255., 0 / 255., 255. / 255.));
-	  rndr->UpdatePosition(x2, y2);
-	 
-  }
-}
-
-
-/*
 static void glfw_mouse_press(GLFWwindow* window, int button, int action, int modifier)
 {
 
@@ -65,26 +14,39 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 		glfwGetCursorPos(window, &x2, &y2);
 		igl::opengl::glfw::Viewer* scn = rndr->GetScene();
 		bool found = false;
+		float min_distanc = INFINITY;
 		int i = 0, savedIndx = scn->selected_data_index;
-
-		for (; i < scn->data_list.size() && !found; i++)
+		if (scn->picked_mesh) {
+			scn->data().set_colors(Eigen::RowVector3d(135. / 255., 255. / 255., 255. / 255.));
+		}
+		for (; i < scn->data_list.size(); i++)
 		{
 			scn->selected_data_index = i;
-			found = rndr->Picking(x2, y2);
-		}
+			float distace = rndr->Picking2(x2, y2);
+			if (distace < min_distanc) {
+				min_distanc = distace;
+				found = true;
+				savedIndx = i;
+			}
 
+
+		}
+		scn->selected_data_index = savedIndx;
 		if (!found)
 		{
-			std::cout << "not found " << std::endl;
-			scn->selected_data_index = savedIndx;
+			//std::cout << "not found " << std::endl;
+			//scn->selected_data_index = -1;
+			scn->picked_mesh = false;
 		}
-		else
-			std::cout << "found " << i - 1 << std::endl;
+		else {
+			//std::cout << "found " << savedIndx << std::endl;
+			scn->picked_mesh = true;
+			scn->data().set_colors(Eigen::RowVector3d(135. / 255., 0 / 255., 255. / 255.));
+		}
 		rndr->UpdatePosition(x2, y2);
 
 	}
 }
-*/
 
 
 //static void glfw_char_mods_callback(GLFWwindow* window, unsigned int codepoint, int modifier)
@@ -94,7 +56,6 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 
  void glfw_mouse_move(GLFWwindow* window, double x, double y)
 {
-	 
 	 Renderer* rndr = (Renderer*)glfwGetWindowUserPointer(window);
 	 rndr->UpdatePosition(x, y);
 	 if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS)
@@ -109,27 +70,9 @@ static void glfw_mouse_press(GLFWwindow* window, int button, int action, int mod
 
 static void glfw_mouse_scroll(GLFWwindow* window, double x, double y)
 {
-
 	Renderer* rndr = (Renderer*)glfwGetWindowUserPointer(window);
-	igl::opengl::glfw::Viewer* scn = rndr->GetScene();
-	Eigen::Matrix4f view = Eigen::Matrix4f::Identity(); // get identity matrix of view
-	igl::look_at(rndr->core().camera_eye, rndr->core().camera_center, rndr->core().camera_up, view);
-	view = view * (rndr->core().trackball_angle * Eigen::Scaling(rndr->core().camera_zoom * rndr->core().camera_base_zoom)
-		* Eigen::Translation3f(rndr->core().camera_translation + rndr->core().camera_base_translation)).matrix()
-		* rndr->GetScene()->MakeTrans();
+	rndr->GetScene()->data().MyScale(Eigen::Vector3f(1 + y * 0.01,1 + y * 0.01,1+y*0.01));
 
-
-	if (scn->selected_data_index == -1) {
-		rndr->GetScene()->MyTranslate((view * Eigen::Vector4f(0, 0, 1, 1)).head(3) * y * 0.01);
-	}
-	else {
-		if (scn->selected_data_index > 1) {
-			rndr->GetScene()->data_list[1].MyTranslate((view * Eigen::Vector4f(0, 0, 1, 1)).head(3) * y * 0.01,scn);
-		}
-		else {
-			rndr->GetScene()->data().MyTranslate((view * Eigen::Vector4f(0, 0, 1, 1)).head(3) * y * 0.01,scn);
-		}
-	}
 }
 
 void glfw_window_size(GLFWwindow* window, int width, int height)
@@ -150,70 +93,7 @@ void glfw_window_size(GLFWwindow* window, int width, int height)
 //{
 //	fputs(description, stderr);
 //}
-//const auto& pre_draw = [&](igl::opengl::glfw::Viewer& viewer)->bool
-//{
-//	// If animating then collapse 10% of edges
-//	if (viewer.core().is_animating && !Q.empty())
-//	{
-//		bool something_collapsed = false;
-//		// collapse edge
-//		const int max_iter = std::ceil(0.01 * Q.size());
-//		for (int j = 0; j < max_iter; j++)
-//		{
-//			if (!collapse_edge(
-//				shortest_edge_and_midpoint, V, F, E, EMAP, EF, EI, Q, Qit, C))
-//			{
-//				break;
-//			}
-//			something_collapsed = true;
-//			num_collapsed++;
-//		}
-//
-//		if (something_collapsed)
-//		{
-//			viewer.data().clear();
-//			viewer.data().set_mesh(V, F);
-//			viewer.data().set_face_based(true);
-//		}
-//	}
-//	return false;
-//};
-static bool preDraw(Renderer* rndr, igl::opengl::glfw::Viewer* viewer) {
-	// If animating then collapse 10% of edges
-	
-	if (/*rndr->core().is_animating &&*/ !viewer->data_list2[viewer->selected_data_index].Q.empty())
-	{
-		bool something_collapsed = false;
-		
-		// collapse edge
-		int max_iter = std::ceil(0.05 * viewer->data_list2[viewer->selected_data_index].Q.size());
-		for (int j = 0; j < max_iter; j++)
-		{
-			
-			if (!viewer->new_collapse_edge(viewer->data().V, viewer->data().F, viewer->data_list2[viewer->selected_data_index].E, viewer->data_list2[viewer->selected_data_index].EMAP, viewer->data_list2[viewer->selected_data_index].EF,
-				viewer->data_list2[viewer->selected_data_index].EI, viewer->data_list2[viewer->selected_data_index].VF, viewer->data_list2[viewer->selected_data_index].VI, viewer->data_list2[viewer->selected_data_index].C, viewer->data_list2[viewer->selected_data_index].Q, viewer->data_list2[viewer->selected_data_index].Qs, viewer->data_list2[viewer->selected_data_index].Qit))
-			{
 
-				break;
-			}
-			something_collapsed = true;
-		}
-
-		if (something_collapsed)
-		{
-			Eigen::MatrixXd newv (viewer->data().V);
-			Eigen::MatrixXi newF (viewer->data().F);
-			viewer->data().clear();
-			viewer->data().set_mesh(newv, newF);
-			//igl::edge_flaps(viewer->data().F, viewer->data_list2[viewer->selected_data_index].E,
-			//	viewer->data_list2[viewer->selected_data_index].EMAP, viewer->data_list2[viewer->selected_data_index].EF,
-			//	viewer->data_list2[viewer->selected_data_index].EI);
-			//igl::vertex_triangle_adjacency(viewer->data().V, viewer->data().F, viewer->data_list2[viewer->selected_data_index].VF, viewer->data_list2[viewer->selected_data_index].VI);
-			viewer->data().set_face_based(true);
-		}
-	}
-	return false;
-}
 static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int action, int modifier)
 {
 	Renderer* rndr = (Renderer*) glfwGetWindowUserPointer(window);
@@ -224,7 +104,6 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 	else if(action == GLFW_PRESS || action == GLFW_REPEAT)
 		switch (key)
 		{
-		
 		case 'A':
 		case 'a':
 		{
@@ -234,24 +113,20 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 		case 'F':
 		case 'f':
 		{
-			if(scn->selected_data_index>=0)
 			scn->data().set_face_based(!scn->data().face_based);
 			break;
 		}
 		case 'I':
 		case 'i':
 		{
-			if (scn->selected_data_index >= 0) {
-				scn->data().dirty |= igl::opengl::MeshGL::DIRTY_NORMAL;
-				scn->data().invert_normals = !scn->data().invert_normals;
-			}
+			scn->data().dirty |= igl::opengl::MeshGL::DIRTY_NORMAL;
+			scn->data().invert_normals = !scn->data().invert_normals;
 			break;
 		}
 		case 'L':
 		case 'l':
 		{
-			if (scn->selected_data_index >= 0)
-				rndr->core().toggle(scn->data().show_lines);
+			rndr->core().toggle(scn->data().show_lines);
 			break;
 		}
 		case 'O':
@@ -260,17 +135,24 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 			rndr->core().orthographic = !rndr->core().orthographic;
 			break;
 		}
+		case ' ':
+		{
+			if (rndr->snake_lost == false) {
+				std::cout << "GAME LEVEL:" << scn->game_level << std::endl;
+				//PlaySound(TEXT("C:\\Users\\Guyp\\Documents\\Animate3D\\soundEffects\\snakehit2.wav"), NULL, SND_SYNC);
+				rndr->start_level_sound();
+				rndr->start_time();
+				scn->ik_flag = !scn->ik_flag;
+				if (scn->ik_flag == false) {
+					rndr->ik_fixer();
+				}
+			}
+			break;
+		}
 		case 'T':
 		case 't':
 		{
-			//rndr->core().toggle(scn->data().show_faces);
-			//scn->print_tip()
-			int index = scn->data_list.size()-1;
-			Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(scn->data_list.size());
-			Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->data_list[index].V.colwise().mean()[0] ,
-				scn->data_list[index].V.colwise().maxCoeff()[1], scn->data_list[index].V.colwise().mean()[2],1);
-			Eigen::Vector3f tip_location =tt.head(3);
-			cout << tip_location << endl;
+			rndr->core().toggle(scn->data().show_faces);
 			break;
 		}
 		case '1':
@@ -280,96 +162,56 @@ static void glfw_key_callback(GLFWwindow* window, int key, int scancode, int act
 				(scn->selected_data_index + scn->data_list.size() + (key == '2' ? 1 : -1)) % scn->data_list.size();
 			break;
 		}
-		case ' ':
-		{
-			if (scn->collision_happend) {
-				scn->undrawBox();
-			}
-			scn->go_flag = !scn->go_flag;
-			break;
-		}
 		case '[':
 		case ']':
 		{
 			rndr->ChangeCamera(key);
 			break;
 		}
+		case 'y':
+		case 'Y':
+			if (rndr->snake_lost) {
+				scn->game_level = 1;
+				rndr->ReSetGame();
+				rndr->snake_lost = false;
+			}
+		case 'n':
+		case 'N':
+			if (rndr->snake_lost) {
+				//scn->game_level++;
+				rndr->ReSetGame();
+			}
+
 		case ';':
-			if (scn->selected_data_index >= 0)
-				scn->data().show_vertid = !scn->data().show_vertid;
+			scn->data().show_vertid = !scn->data().show_vertid;
 			break;
 		case ':':
-			if (scn->selected_data_index >= 0)
-				scn->data().show_faceid = !scn->data().show_faceid;
+			scn->data().show_faceid = !scn->data().show_faceid;
 			break;
-		case 'p':
-		case 'P':
-			if (scn->selected_data_index > 0)
-				scn->data().PrintRotation();
-			break;
-		case 'D':
-		case 'd': 
-		{
-			Eigen::Matrix4f ball_pos = scn->data_list[0].MakeTrans();
-			Eigen::Vector3f ball_center = ball_pos.col(3).head(3);
-			cout << ball_center << endl;
-			break; 
-		}
 		case GLFW_KEY_UP:
 		{
-			
-				rndr->arrow = 2;
-			
-		/*	if (scn->selected_data_index < 0) {
-				scn->MyRotate(Eigen::Vector3f(0, 1, 0), 0.1);
-			}
-			else if(scn->selected_data_index<2){
-				scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(0,1, 0), 0.1);
-			}
-			else
-			{
-				scn->data_list[scn->selected_data_index].RotInSys(Eigen::Vector3f(0, 1, 0), 0.1);
-			}*/
 
-			break; 
+			rndr->arrow = 2;
+			break;
 		}
 		case GLFW_KEY_DOWN:
 		{
-				rndr->arrow = 3;
-			/*
-			if (scn->selected_data_index < 0) {
-				scn->MyRotate(Eigen::Vector3f(0, 1, 0), -0.1);
-			}
-			else if (scn->selected_data_index < 2) {
-				scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(0, 1, 0), -0.1);
-			}
-			else
-				scn->data_list[scn->selected_data_index].RotInSys(Eigen::Vector3f(0, 1, 0), -0.1);
-				*/
+			rndr->arrow = 3;
+			
 			break;
 		}
 		case GLFW_KEY_LEFT:
 		{
-				rndr->arrow = 0;
-			/*if (scn->selected_data_index < 0) {
-				scn->MyRotate(Eigen::Vector3f(1, 0, 0), -0.1);
-			}
-			else
-			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1,0,0), -0.1);*/
+			rndr->arrow = 0;
+			
 			break;
 		}
 		case GLFW_KEY_RIGHT:
 		{
-				rndr->arrow = 1;
-			/*if (scn->selected_data_index < 0) {
-				scn->MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);
-			}
-			else
-			scn->data_list[scn->selected_data_index].MyRotate(Eigen::Vector3f(1, 0, 0), 0.1);*/
+			rndr->arrow = 1;
+			
 			break;
 		}
-		
-
 		default: break;//do nothing
 		}
 }

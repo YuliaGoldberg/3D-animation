@@ -4,7 +4,10 @@
 #include <functional>
 #include <igl/opengl/ViewerCore.h>
 #include <igl/opengl/glfw/Viewer.h>
-#include <igl/AABB.h>
+#include <Windows.h>
+#include <mmsystem.h>
+#include <time.h>
+
 struct GLFWwindow;
 
 class Renderer 
@@ -14,6 +17,8 @@ public:
 	~Renderer();
 	IGL_INLINE void draw( GLFWwindow* window);
 	IGL_INLINE void init(igl::opengl::glfw::Viewer* scn);
+
+	void locateCore1();
 	
 	//IGL_INLINE bool key_pressed(unsigned int unicode_key, int modifiers);
 
@@ -42,7 +47,11 @@ public:
 	void* callback_key_down_data;
 	void* callback_key_up_data;
 	int arrow = 0;
-
+	unsigned int left_view, right_view;
+	bool snake_win = false;
+	bool snake_lost = false;
+	int time_start;
+	int current_score = 0;
 	////////////////////////////
 	// Multi-viewport methods //
 	////////////////////////////
@@ -66,6 +75,27 @@ public:
 	//   other existing viewports
 	IGL_INLINE int append_core(Eigen::Vector4f viewport, bool append_empty = false);
 
+	void line_less();
+
+	Eigen::Vector3f Calc_E();
+
+	Eigen::Vector3f Calc_R(igl::opengl::ViewerData *ptr);
+
+	void ik_fixer();
+	void ik_solver();
+	bool checkCollision_helper();
+	bool checkCollision(igl::AABB<Eigen::MatrixXd, 3>* snake, igl::AABB<Eigen::MatrixXd, 3>* obj_tree, Eigen::Matrix3f* A, Eigen::Matrix3f* B, Eigen::Matrix3f* C);
+	bool tableCalc(Eigen::Matrix3f* A, float a0, float a1, float a2, Eigen::Matrix3f* B, float b0, float b1, float b2, Eigen::Matrix3f* C, Eigen::Vector3f* D);
+	bool checkCollision(igl::AABB<Eigen::MatrixXd, 3> snake_head, igl::AABB<Eigen::MatrixXd, 3> obj_tree);
+	bool checkCollision(igl::AABB<Eigen::MatrixXd, 3> bunnyA, igl::AABB<Eigen::MatrixXd, 3> bunnyB, Eigen::Vector3f A0, Eigen::Vector3f A1, Eigen::Vector3f A2
+		, Eigen::Vector3f B0, Eigen::Vector3f B1, Eigen::Vector3f B3);
+	bool tableCalc(Eigen::Vector3f A0, Eigen::Vector3f A1, Eigen::Vector3f A2, float a0, float a1, float a2, Eigen::Vector3f B0, Eigen::Vector3f B1, Eigen::Vector3f B2, float b0, float b1, float b2, Eigen::Matrix3f C, Eigen::Vector3f D);
+	void go_Bunny();
+	void start_time();
+	void start_level_sound();
+	void snake_win_sound();
+	void snake_lose_sound();
+	void ReSetGame();
 	// Erase a viewport
 	//
 	// Inputs:
@@ -81,23 +111,16 @@ public:
 	// IGL_INLINE void select_hovered_core();
 
 	// Callbacks
-	 bool Picking(double x, double y);
 	 double Picking2(double x, double y);
-	 void line_less();
+	 bool Picking(double x, double y);
 	IGL_INLINE bool key_pressed(unsigned int unicode_key, int modifier);
 	IGL_INLINE void resize(GLFWwindow* window,int w, int h); // explicitly set window size
 	IGL_INLINE void post_resize(GLFWwindow* window, int w, int h); // external resize due to user interaction
 	void SetScene(igl::opengl::glfw::Viewer* scn);
+	void MultipleViews();
+	void UpdateCore();
 	void UpdatePosition(double xpos, double ypos);
 	void MouseProcessing(int button);
-	void animate(GLFWwindow* window);
-	Eigen::Vector3f Calc_E();
-	Eigen::Vector3f Calc_R(int index);
-	void ik_fixer();
-	void ik_solver();
-	bool checkCollision(igl::AABB<Eigen::MatrixXd, 3> A, igl::AABB<Eigen::MatrixXd, 3> B);
-	bool tableCalc(Eigen::Vector3f A0, Eigen::Vector3f A1, Eigen::Vector3f A2, float a0, float a1, float a2, Eigen::Vector3f B0, Eigen::Vector3f B1, Eigen::Vector3f B2, float b0, float b1, float b2, Eigen::Matrix3f C, Eigen::Vector3f D);
-	void go_Bunny();
 	inline igl::opengl::glfw::Viewer* GetScene() {
 		return scn;
 	}
@@ -107,6 +130,7 @@ public:
 			(selected_core_index + core_list.size() + (unicode_key == ']' ? 1 : -1)) % core_list.size();
 
 	}
+	
 
 private:
 	// Stores all the viewing options

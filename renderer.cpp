@@ -36,7 +36,7 @@ next_core_id(2)
 
 }
 
-IGL_INLINE void Renderer::draw(GLFWwindow* window)
+IGL_INLINE void Renderer::draw( GLFWwindow* window)
 {
 	using namespace std;
 	using namespace Eigen;
@@ -46,12 +46,12 @@ IGL_INLINE void Renderer::draw(GLFWwindow* window)
 
 	int width_window, height_window;
 	glfwGetWindowSize(window, &width_window, &height_window);
-
+	
 	auto highdpi_tmp = (width_window == 0 || width == 0) ? highdpi : (width / width_window);
 
 	if (fabs(highdpi_tmp - highdpi) > 1e-8)
 	{
-		post_resize(window, width, height);
+		post_resize(window,width, height);
 		highdpi = highdpi_tmp;
 	}
 
@@ -60,39 +60,91 @@ IGL_INLINE void Renderer::draw(GLFWwindow* window)
 		core.clear_framebuffers();
 	}
 
-
 	for (auto& core : core_list)
 	{
-
 		for (auto& mesh : scn->data_list)
 		{
+			
 			if (mesh.is_visible & core.id)
 			{
-			core.draw(scn->MakeTrans(), mesh);
-
+				Eigen::Matrix4f cal = scn->MakeTrans() * scn->CalcParentsTrans(mesh.prev);
+				core.draw(cal, mesh,true);
 			}
 
 		}
-
-
-
-		
 	}
+
 }
-
-
 
 void Renderer::SetScene(igl::opengl::glfw::Viewer* viewer)
 {
 	scn = viewer;
 }
+void Renderer::MultipleViews()
+{
+	unsigned int left_view, right_view;
+	core().viewport = Eigen::Vector4f(0, 0, 640, 800);
+	left_view = core_list[0].id;
+	right_view = append_core(Eigen::Vector4f(640, 0, 640, 800));
+	scn->snake_head->set_visible(true, left_view);
+	scn->data_list[10].set_visible(true, right_view);
+	GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+	const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+	int w = mode->width, h = mode->height;
+	core(left_view).viewport = Eigen::Vector4f(0, 0, w / 2, h);
+	core(right_view).viewport = Eigen::Vector4f(w / 2, 0, w - (w / 2), h);
 
+
+}
 IGL_INLINE void Renderer::init(igl::opengl::glfw::Viewer* viewer)
 {
+
 	scn = viewer;
 	core().init(); 
 
 	core().align_camera_center(scn->data().V, scn->data().F);
+	//****splite screen
+	core().viewport = Eigen::Vector4f(0, 0, 500, 800);
+	left_view = core_list[0].id;
+	right_view = append_core(Eigen::Vector4f(500, 0, 500, 800));
+	locateCore1();
+}
+void Renderer::locateCore1()
+{
+	Eigen::RowVector3f N = scn->data(9).GetRotation().matrix() * Eigen::Vector3f(0, 0, 1);
+	core(right_view).camera_up = N;
+	Eigen::RowVector3f E = scn->data(9).GetRotation().matrix() * Eigen::Vector3f(0, -2.09, 0);
+	core(right_view).camera_eye = E;
+
+	Eigen::RowVector3f TR = -(scn->MakeTrans() * scn->CalcParentsTrans(scn->snake_head)).col(3).head(3);//A.col(1);
+	//TR = TR + Eigen::RowVector3f(0, -((0.91) + (9 * 1.6)), 0);
+	Eigen::Vector3f a = (scn->CalParentsRotationMatrixes(scn->snake_head).matrix().col(1) * -0.83);
+
+
+	TR += a;
+	core(right_view).camera_translation = TR;
+	for (int i = 0; i<scn->data_list.size(); ++i)
+	{
+		scn->data_list[i].set_visible(true, left_view);
+		scn->data_list[i].set_visible(true, right_view);
+	}
+}
+
+
+void Renderer::UpdateCore() {
+
+	Eigen::Matrix3f rota = scn->CalParentsRotationMatrixes(scn->snake_head);
+	// TODO - play with yTheta in order to fix the camera_eye
+	core(right_view).camera_up = rota * Eigen::Vector3f(0, 0, 1);
+	core(right_view).camera_eye = rota * Eigen::Vector3f(0, -2.09, 0);
+	Eigen::RowVector3f TR = -(scn->MakeTrans() * scn->CalcParentsTrans(scn->snake_head)).col(3).head(3); //A.col(1);
+	Eigen::Vector3f a = (scn->CalParentsRotationMatrixes(scn->snake_head).matrix().col(1) * -0.83);
+		
+
+	TR += a;
+
+	core(right_view).camera_translation = TR;
+
 }
 
 void Renderer::UpdatePosition(double xpos, double ypos)
@@ -108,26 +160,37 @@ void Renderer::MouseProcessing(int button)
 	
 	if (button == 1)
 	{
-		if (scn->selected_data_index ==0|| scn->selected_data_index == 1) {
-			scn->data().MyTranslate(Eigen::Vector3f(-xrel / 1000.0f, 0, 0));
-			scn->data().MyTranslate(Eigen::Vector3f(0, yrel / 1000.0f, 0));
+		if (scn->picked_mesh) {
+			if (scn->data().prev != nullptr)
+			{
+				scn->data(0).MyTranslate(Eigen::Vector3f(-xrel / 20.0f, 0, 0));
+				scn->data(0).MyTranslate(Eigen::Vector3f(0, yrel / 20.0f, 0));
+			}
+			else {
+				scn->data().MyTranslate(Eigen::Vector3f(-xrel / 20.0f, 0, 0));
+				scn->data().MyTranslate(Eigen::Vector3f(0, yrel / 20.0f, 0));
+			}
+			//****splite screen
+			
+			UpdateCore();
 		}
-		else {
-			scn->MyTranslate(Eigen::Vector3f(-xrel / 1000.0f, 0, 0));
-			scn->MyTranslate(Eigen::Vector3f(0, yrel / 1000.0f, 0));
-		}
+	
 		
 	}
 	else
 	{
-		if (scn->selected_data_index == -1) {
-			scn->MyRotate(Eigen::Vector3f(1, 0, 0), xrel / 180.0f);
-			scn->MyRotate(Eigen::Vector3f(0, 0, 1), yrel / 180.0f);
-		
-		}
-		else {
+		if (scn->picked_mesh) {
 			scn->data().MyRotate(Eigen::Vector3f(1, 0, 0), xrel / 180.0f);
 			scn->data().MyRotate(Eigen::Vector3f(0, 0, 1), yrel / 180.0f);
+			//****splite screen
+			ik_fixer();
+			UpdateCore();
+			
+			
+		}
+		else {
+			scn->MyRotate(Eigen::Vector3f(1, 0, 0), xrel / 180.0f);
+			scn->MyRotate(Eigen::Vector3f(0, 0, 1), yrel / 180.0f);
 		}
 	}
 	
@@ -138,60 +201,67 @@ Renderer::~Renderer()
 	//if (scn)
 	//	delete scn;
 }
-
 double Renderer::Picking2(double newx, double newy)
 {
 	int fid;
 	//Eigen::MatrixXd C = Eigen::MatrixXd::Constant(scn->data().F.rows(), 3, 1);
 	Eigen::Vector3f bc;
 	double x = newx;
-	double y = core().viewport(3) - newy;
+	double y = core(left_view).viewport(3) - newy;
 	Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
-	igl::look_at(core().camera_eye, core().camera_center, core().camera_up, view);
-	view = view * (core().trackball_angle * Eigen::Scaling(core().camera_zoom * core().camera_base_zoom)
-		* Eigen::Translation3f(core().camera_translation + core().camera_base_translation)).matrix() * scn->MakeTrans() *scn->CalcParentsTrans(scn->selected_data_index) *scn->data().MakeTrans() ;
+	igl::look_at(core(left_view).camera_eye, core(left_view).camera_center, core(left_view).camera_up, view);
+	view = view * (core(left_view).trackball_angle * Eigen::Scaling(core(left_view).camera_zoom * core(left_view).camera_base_zoom)
+		* Eigen::Translation3f(core(left_view).camera_translation + core(left_view).camera_base_translation)).matrix() * scn->MakeTrans() * scn->CalcParentsTrans(scn->data().prev) * scn->data().MakeTrans();
 	if (igl::unproject_onto_mesh(Eigen::Vector2f(x, y), view,
-		core().proj, core().viewport, scn->data().V, scn->data().F, fid, bc))
-		{
-			int p1, p2, p3;
-			p1 = scn->data().F.row(fid)[0];
-			p2 = scn->data().F.row(fid)[1];
-			p3 = scn->data().F.row(fid)[2];
-			Eigen::Vector3f v1(scn->data().V.row(p1)[0], scn->data().V.row(p1)[1], scn->data().V.row(p1)[2]);
-			Eigen::Vector3f v2(scn->data().V.row(p2)[0], scn->data().V.row(p2)[1], scn->data().V.row(p2)[2]);
-			Eigen::Vector3f v3(scn->data().V.row(p3)[0], scn->data().V.row(p3)[1], scn->data().V.row(p3)[2]);
-			Eigen::Vector3f b(v1[0]*bc[0]+v2[0]*bc[1]+v3[0]*bc[2], v1[1] * bc[0] + v2[1] * bc[1] + v3[1] * bc[2], v1[2] * bc[0] + v2[2] * bc[1] + v3[2] * bc[2]);
-			Eigen::Vector4f a(4);
-			a << b, 1;
-			Eigen::Vector4f ans4f(4);
-			ans4f = view * a;
-			return ans4f.norm();
-		}
-		return INFINITY;
+		core(left_view).proj, core(left_view).viewport, scn->data().V, scn->data().F, fid, bc))
+	{
+		Eigen::MatrixXi F = scn->data().F;
+		Eigen::MatrixXd V = scn->data().V;
+
+		//Vector4f v5 = Vector4f (1.0 f , 2.0 f , 3.0 f , 4.0 f ) ;
+
+		Eigen::Vector3f v0, v1, v2, p;
+		v0 = V.row(F.row(fid)(0)).cast<float>();
+		v1 = V.row(F.row(fid)(1)).cast<float>();
+		v2 = V.row(F.row(fid)(2)).cast<float>();
+
+		Eigen::Vector4f u0, u1, u2;
+		u0 = Eigen::Vector4f(v0[0], v0[1], v0[2], 1.0f);
+		u1 = Eigen::Vector4f(v1[0], v1[1], v1[2], 1.0f);
+		u2 = Eigen::Vector4f(v2[0], v2[1], v2[2], 1.0f);
+
+		u0 = view * u0;
+		u1 = view * u1;
+		u2 = view * u2;
+
+		v0 = Eigen::Vector3f(u0[0], u0[1], u0[2]);
+		v1 = Eigen::Vector3f(u1[0], u1[1], u1[2]);
+		v2 = Eigen::Vector3f(u2[0], u2[1], u2[2]);
+
+		p = v0 * bc[0] + v1 * bc[1] + v2 * bc[2];
+		return p[2];
+	}
+	return INFINITY;
 }
-void Renderer::line_less() {
-	for (int i = 0; i < scn->data_list.size(); ++i)
-		core().toggle(scn->data_list[i].show_lines);
-}
-//previous function
+
 bool Renderer::Picking(double newx, double newy)
 {
-	int fid;
-	//Eigen::MatrixXd C = Eigen::MatrixXd::Constant(scn->data().F.rows(), 3, 1);
-	Eigen::Vector3f bc;
-	double x = newx;
-	double y = core().viewport(3) - newy;
-	Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
-	igl::look_at(core().camera_eye, core().camera_center, core().camera_up, view);
-	view = view * (core().trackball_angle * Eigen::Scaling(core().camera_zoom * core().camera_base_zoom)
-		* Eigen::Translation3f(core().camera_translation + core().camera_base_translation)).matrix() * scn->MakeTrans() * scn->data().MakeTrans();
-	if (igl::unproject_onto_mesh(Eigen::Vector2f(x, y), view,
-		core().proj, core().viewport, scn->data().V, scn->data().F, fid, bc))
-	{
-		return true;
-	}
-	return false;
-
+		int fid;
+		//Eigen::MatrixXd C = Eigen::MatrixXd::Constant(scn->data().F.rows(), 3, 1);
+		Eigen::Vector3f bc;
+		double x = newx;
+		double y = core().viewport(3) - newy;
+		Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
+		igl::look_at(core().camera_eye, core().camera_center, core().camera_up, view);
+		view = view * (core().trackball_angle * Eigen::Scaling(core().camera_zoom * core().camera_base_zoom)
+				* Eigen::Translation3f(core().camera_translation + core().camera_base_translation)).matrix() * scn->MakeTrans() * scn->data().MakeTrans();
+		if (igl::unproject_onto_mesh(Eigen::Vector2f(x, y), view,
+ 			core().proj, core().viewport, scn->data().V, scn->data().F, fid, bc))
+		{
+			return true;
+		}
+		return false;
+	
 }
 
 IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
@@ -212,6 +282,8 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 		{
 			// It is up to the user to define the behavior of the post_resize() function
 			// when there are multiple viewports (through the `callback_post_resize` callback)
+			core(left_view).viewport = Eigen::Vector4f(0, 0, w / 2, h);
+			core(right_view).viewport = Eigen::Vector4f(w/2, 0, w / 2, h);
 		}
 		//for (unsigned int i = 0; i < plugins.size(); ++i)
 		//{
@@ -291,208 +363,334 @@ IGL_INLINE void Renderer::resize(GLFWwindow* window,int w, int h)
 		selected_core_index = core_list.size() - 1;
 		return core_list.back().id;
 	}
-	void Renderer::animate(GLFWwindow* window) {
-		
+	void Renderer::line_less() {
+		for (int i = 0; i < scn->data_list.size(); ++i) {
+			core(left_view).toggle(scn->data_list[i].show_lines);
+			//core(right_view).toggle(scn->data_list[i].show_lines);
+			core(right_view).toggle(scn->data_list[i].show_faces);
+		}
 	}
 	Eigen::Vector3f Renderer::Calc_E() {
-		int index = scn->data_list.size() - 1;
-		Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(scn->data_list.size());
-		Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->data_list[index].V.colwise().mean()[0],
-			scn->data_list[index].V.colwise().maxCoeff()[1], scn->data_list[index].V.colwise().mean()[2], 1);
+		
+		Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(scn->snake_head);
+		Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->snake_head->V.colwise().mean()[0],
+			scn->snake_head->V.colwise().maxCoeff()[1], scn->snake_head->V.colwise().mean()[2], 1);
 		return tt.head(3);
 	}
-	Eigen::Vector3f Renderer::Calc_R(int index) {
-		
-		Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(index+1);
-		Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(scn->data_list[index].V.colwise().mean()[0],
-			scn->data_list[index].V.colwise().minCoeff()[1], scn->data_list[index].V.colwise().mean()[2], 1);
+	Eigen::Vector3f Renderer::Calc_R(igl::opengl::ViewerData * ptr) {
+
+		Eigen::Matrix4f parentsTransform = scn->CalcParentsTrans(ptr);
+		Eigen::Vector4f tt = parentsTransform * Eigen::Vector4f(ptr->V.colwise().mean()[0],
+			ptr->V.colwise().minCoeff()[1], ptr->V.colwise().mean()[2], 1);
 		return tt.head(3);
 	}
 	void Renderer::ik_fixer() {
-		for (int i = 1; i < scn->data_list.size(); ++i)
+		for (int i = 0; i < 10; ++i)
 		{
 			Eigen::Matrix3f rot = scn->data_list[i].GetRotation();
 			float y1 = 0;
-			if(rot.row(1)[1] < 1&& rot.row(1)[1] > -1){
-			
+			if (rot.row(1)[1] < 1 && rot.row(1)[1] > -1) {
+
 				y1 = atan2f(rot.row(1)[0], -rot.row(1)[2]);
 			}
 			scn->data_list[i].MyRotate(Eigen::Vector3f(0, 1, 0), -y1);
-			if (scn->data_list.size() > i+1) {
-				scn->data_list[i+1].RotInSys(Eigen::Vector3f(0, 1, 0), y1);
+			if (10 > i + 1) {
+				scn->data_list[i + 1].RotInSys(Eigen::Vector3f(0, 1, 0), y1);
 			}
-			
+
 		}
 	}
-	
+
 	void Renderer::ik_solver() {
-		
-		
-		Eigen::Vector3f D = scn->data_list[0].MakeTrans().col(3).head(3);
-		Eigen::Vector3f Base = Calc_R(1);
+		Eigen::Vector3f D = scn->data_list[scn->selected_data_index].MakeTrans().col(3).head(3);
+		Eigen::Vector3f Base = Calc_R(&scn->data_list[0]);
 		Eigen::Vector3f E = Calc_E();
 		double EDdistance = (D - E).norm();
-		double BaseDdistance = (D-Base).norm();
-		double max_Arm_length = 1.6 * scn->data_list_indices.size();
-		if (BaseDdistance > max_Arm_length) {
-			cout << "cannot reach" << endl;
-			scn->ik_flag = false;
-			
-			return;
-		}
-		if(EDdistance<0.1){
-			ik_fixer();
-			scn->ik_flag = false;
-			return;
-		}
+		double BaseDdistance = (D - Base).norm();
+		double max_Arm_length = 1.6 * 10;
+		//if (BaseDdistance > max_Arm_length) {
+		//	std::cout << "cannot reach" << std::endl;
+		//	std::cout << "BaseDdistance: " << BaseDdistance << std::endl;
+
+		//	//scn->ik_flag = false;
+		//	ik_fixer();
+		//	return;
+		//}
+		//if (/*EDdistance<0.1 */)){
+		//	ik_fixer();
+		//	scn->ik_flag = false;
+		//	return;
+		//}
 
 
-			for (int i = scn->data_list.size() - 1; i > 0; i--) {
-				
-				 
-				Eigen::Vector3f R = Calc_R(i);
-				
-				Eigen::Vector3f RD = (D - R).normalized();
-				Eigen::Vector3f RE = (E - R).normalized();
-				float pre_angle = RE.dot(RD);
-				if (pre_angle > 1) {
-					pre_angle = 1;
-				}
-				else if (pre_angle < -1)
-					pre_angle = -1;
-
-				float angle = acosf(pre_angle);
-
-				Eigen::Vector3f cross = RE.cross(RD).normalized();
-				Eigen::Vector3f crossInverse = scn->CalcParentsInverse(scn->data_list.size()) * cross;
-				if (EDdistance > 0.5)
-					angle = angle / 10;
-				scn->data_list[i].MyRotate(crossInverse, angle);
-				E = Calc_E();
-				if (i > 1) {
-
-					Eigen::Vector3f R_tag = Calc_R(i-1);
-					Eigen::Vector3f R_tagR = (R_tag - R).normalized();
-					Eigen::Vector3f RE = (E - R).normalized();
-					pre_angle = RE.dot(R_tagR);
-					if (pre_angle > 1) {
-						pre_angle = 1;
-					}
-					else if (pre_angle < -1)
-						pre_angle = -1;
-
-					float angle2 = acosf(pre_angle);
-					if (angle2 < (M_PI / 6)) {
-						scn->data_list[i].MyRotate(crossInverse, -angle);
-						angle = (M_PI / 6) - angle2;
-						scn->data_list[i].MyRotate(crossInverse, angle);
-					}
-				
-				}
+		for (auto ptr = scn->snake_head; ptr!=nullptr; ptr=ptr->prev) {
+			//****splite screen
+			if (checkCollision_helper()) {
+				scn->ik_flag = false;
 			}
+			UpdateCore();
+			Eigen::Vector3f R = Calc_R(ptr);
+
+			Eigen::Vector3f RD = (D - R).normalized();
+			Eigen::Vector3f RE = (E - R).normalized();
+			float pre_angle = RE.dot(RD);
+			if (pre_angle > 1) {
+				pre_angle = 1;
+			}
+			else if (pre_angle < -1)
+				pre_angle = -1;
+
+			float angle = acosf(pre_angle);
+
+			Eigen::Vector3f cross = RE.cross(RD).normalized();
+			Eigen::Vector3f crossInverse = scn->CalcParentsInverse(scn->snake_head) * cross;
+			if (EDdistance > 0.5)
+				angle = angle / 20;
+			ptr->MyRotate(crossInverse, angle);
+			E = Calc_E();
 		
+		}
+
+
+	}
+	bool Renderer::checkCollision_helper()
+	{
+		Eigen::Matrix3f snake_rotation = scn->snake_head->GetRotation().matrix();
+		Eigen::Matrix3f obj_rotation = scn->data().GetRotation().matrix();
+		
+		Eigen::Matrix3f C = snake_rotation.transpose() * obj_rotation;
+		
+		
+		return checkCollision(&scn->snake_head->tree, &scn->data().tree,&snake_rotation,&obj_rotation,&C);
 
 	}
 
-	bool Renderer::checkCollision(igl::AABB<Eigen::MatrixXd, 3> bunnyA, igl::AABB<Eigen::MatrixXd, 3> bunnyB) {
-		Eigen::Vector3f bunnyAcenter = bunnyA.m_box.center().cast<float>();
-		Eigen::Vector3f bunnyBcenter = bunnyB.m_box.center().cast<float>();
-		Eigen::Vector3f centerC0 = (scn->data_list[0].MakeTrans() * Eigen::Vector4f(bunnyAcenter[0],
+	bool Renderer::checkCollision(igl::AABB<Eigen::MatrixXd, 3>* bunnyA, igl::AABB<Eigen::MatrixXd, 3>* bunnyB, Eigen::Matrix3f* A, Eigen::Matrix3f* B, Eigen::Matrix3f* C) {
+		Eigen::Vector3f bunnyAcenter = bunnyA->m_box.center().cast<float>();
+		Eigen::Vector3f bunnyBcenter = bunnyB->m_box.center().cast<float>();
+		Eigen::Vector3f centerC0 = (scn->data().MakeTrans() * Eigen::Vector4f(bunnyAcenter[0],
 			bunnyAcenter[1], bunnyAcenter[2], 1)).head(3);
-		Eigen::Vector3f centerC1 = (scn->data_list[1].MakeTrans() * Eigen::Vector4f(bunnyBcenter[0],
+		Eigen::Vector3f centerC1 = (scn->CalcParentsTrans(scn->snake_head) * Eigen::Vector4f(bunnyBcenter[0],
 			bunnyBcenter[1], bunnyBcenter[2], 1)).head(3);
 		Eigen::Vector3f D = centerC1 - centerC0;
-		Eigen::Vector3f A0 = (scn->data_list[0].GetRotation() * Eigen::Vector3f(1, 0, 0));//Xaxis
-		Eigen::Vector3f A1 = (scn->data_list[0].GetRotation() * Eigen::Vector3f(0, 1, 0));//Yaxis
-		Eigen::Vector3f A2 = (scn->data_list[0].GetRotation() * Eigen::Vector3f(0, 0, 1));//Zaxis
-		Eigen::Vector3f B0 = (scn->data_list[1].GetRotation() * Eigen::Vector3f(1, 0, 0));//Xaxis
-		Eigen::Vector3f B1 = (scn->data_list[1].GetRotation() * Eigen::Vector3f(0, 1, 0));//Yaxis
-		Eigen::Vector3f B2 = (scn->data_list[1].GetRotation() * Eigen::Vector3f(0, 0, 1));//Zaxis
-		Eigen::Vector3f randomPointA = bunnyA.m_box.corner(bunnyA.m_box.BottomLeftFloor).cast<float>();
-		Eigen::Vector3f randomPointB = bunnyB.m_box.corner(bunnyB.m_box.BottomLeftFloor).cast<float>();
-		float a0 = bunnyA.m_box.sizes().cast<float>()[0] / 2;//sqrt(pow(bunnyAcenter[0] - randomPointA[0], 2.));
-		float a1 = bunnyA.m_box.sizes().cast<float>()[1] / 2;//sqrt(pow(bunnyAcenter[1] - randomPointA[1], 2.));
-		float a2 = bunnyA.m_box.sizes().cast<float>()[2] / 2;//sqrt(pow(bunnyAcenter[2] - randomPointA[2], 2.));
-		float b0 = bunnyB.m_box.sizes().cast<float>()[0] / 2;//sqrt(pow(bunnyBcenter[0] - randomPointA[0], 2.));
-		float b1 = bunnyB.m_box.sizes().cast<float>()[1] / 2;//sqrt(pow(bunnyBcenter[1] - randomPointA[1], 2.));
-		float b2 = bunnyB.m_box.sizes().cast<float>()[2] / 2;//sqrt(pow(bunnyBcenter[2] - randomPointA[2], 2.));
-		Eigen::Matrix3f C = scn->data_list[0].GetRotation().inverse() * scn->data_list[1].GetRotation();
-		bool tableCalcAns = tableCalc(A0, A1, A2, a0, a1, a2, B0, B1, B2, b0, b1, b2, C, D);
+		
+		float a0 = bunnyA->m_box.sizes().cast<float>()[0] / 2;
+		float a1 = bunnyA->m_box.sizes().cast<float>()[1] / 2;
+		float a2 = bunnyA->m_box.sizes().cast<float>()[2] / 2;
+		float b0 = bunnyB->m_box.sizes().cast<float>()[0] / 2;
+		float b1 = bunnyB->m_box.sizes().cast<float>()[1] / 2;
+		float b2 = bunnyB->m_box.sizes().cast<float>()[2] / 2;
+		bool tableCalcAns = tableCalc(A, a0, a1, a2, B, b0, b1, b2, C, &D);
 		if (!tableCalcAns)
 		{
-			if (bunnyA.is_leaf())
+			if (bunnyA->is_leaf())
 			{
-				if (bunnyB.is_leaf())
+				if (bunnyB->is_leaf())
 				{
-					scn->drawBox(bunnyA, 0, Eigen::RowVector3d(0,1,0));
-					scn->drawBox(bunnyB, 1, Eigen::RowVector3d(0,1,0));
-					scn->go_flag = false;
-					scn->collision_happend = true;
+					scn->ik_flag = false;
+					snake_win = true;
 					return true;
 				}
 				else
 				{
-					return checkCollision(bunnyA, *bunnyB.m_left) || checkCollision(bunnyA, *bunnyB.m_right);
+					return checkCollision(bunnyA, bunnyB->m_left, A, B, C) || checkCollision(bunnyA, bunnyB->m_right, A, B, C);
 				}
 			}
-			else if (bunnyB.is_leaf())
+			else if (bunnyB->is_leaf())
 			{
-					return checkCollision(*bunnyA.m_left, bunnyB) || checkCollision(*bunnyA.m_right, bunnyB);
+				return checkCollision(bunnyA->m_left, bunnyB, A, B, C) || checkCollision(bunnyA->m_right, bunnyB, A, B, C);
 			}
 			else
 			{
-				return checkCollision(*bunnyA.m_left, *bunnyB.m_left) || checkCollision(*bunnyA.m_left, *bunnyB.m_right)|| checkCollision(*bunnyA.m_right, *bunnyB.m_left) || checkCollision(*bunnyA.m_right, *bunnyB.m_right);
+				return checkCollision(bunnyA->m_left, bunnyB->m_left, A, B, C) || checkCollision(bunnyA->m_left, bunnyB->m_right, A, B, C) || checkCollision(bunnyA->m_right, bunnyB->m_left, A, B, C) || checkCollision(bunnyA->m_right, bunnyB->m_right, A, B, C);
 			}
-			
+
 		}
 		else//no Collision
 		{
 			return false;
 		}
 	}
+	
+	
 
-	bool Renderer::tableCalc(Eigen::Vector3f A0, Eigen::Vector3f A1, Eigen::Vector3f A2, float a0, float a1, float a2, Eigen::Vector3f B0, Eigen::Vector3f B1, Eigen::Vector3f B2, float b0, float b1, float b2, Eigen::Matrix3f C, Eigen::Vector3f D) {
-		return (a0 + (b0 * abs(C.row(0)[0]) + b1 * abs(C.row(0)[1]) + b2 * abs(C.row(0)[2])) < abs(A0.dot(D))) ||
-			(a1 + (b0 * abs(C.row(1)[0]) + b1 * abs(C.row(1)[1]) + b2 * abs(C.row(1)[2])) < abs(A1.dot(D))) ||
-			(a2 + (b0 * abs(C.row(2)[0]) + b1 * abs(C.row(2)[1]) + b2 * abs(C.row(2)[2])) < abs(A2.dot(D))) ||
-			(b0 + (a0 * abs(C.row(0)[0]) + a1 * abs(C.row(1)[0]) + a2 * abs(C.row(2)[0])) < abs(B0.dot(D))) ||
-			(b1 + (a0 * abs(C.row(0)[1]) + a1 * abs(C.row(1)[1]) + a2 * abs(C.row(2)[1])) < abs(B1.dot(D))) ||
-			(b2 + (a0 * abs(C.row(0)[2]) + a1 * abs(C.row(1)[2]) + a2 * abs(C.row(2)[2])) < abs(B2.dot(D))) ||
-			(((a1 * abs(C.row(2)[0]) + a2 * abs(C.row(1)[0])) + (b1 * abs(C.row(0)[2]) + b2 * abs(C.row(0)[1]))) < abs(C.row(1)[0] * A2.dot(D) - C.row(2)[0] * A1.dot(D))) ||
-			(((a1 * abs(C.row(2)[1]) + a2 * abs(C.row(1)[1])) + (b0 * abs(C.row(0)[2]) + b2 * abs(C.row(0)[0]))) < abs(C.row(1)[1] * A2.dot(D) - C.row(2)[1] * A1.dot(D))) ||
-			(((a1 * abs(C.row(2)[2]) + a2 * abs(C.row(1)[2])) + (b0 * abs(C.row(0)[1]) + b1 * abs(C.row(0)[0]))) < abs(C.row(1)[2] * A2.dot(D) - C.row(2)[2] * A1.dot(D))) ||
 
-			(((a0 * abs(C.row(2)[0]) + a2 * abs(C.row(0)[0])) + (b1 * abs(C.row(1)[2]) + b2 * abs(C.row(1)[1]))) < abs(C.row(2)[0] * A0.dot(D) - C.row(0)[0] * A2.dot(D))) ||
-			(((a0 * abs(C.row(2)[1]) + a2 * abs(C.row(0)[1])) + (b0 * abs(C.row(1)[2]) + b2 * abs(C.row(1)[0]))) < abs(C.row(2)[1] * A0.dot(D) - C.row(0)[1] * A2.dot(D))) ||
-			(((a0 * abs(C.row(2)[2]) + a2 * abs(C.row(0)[2])) + (b0 * abs(C.row(1)[1]) + b1 * abs(C.row(1)[0]))) < abs(C.row(2)[2] * A0.dot(D) - C.row(0)[2] * A2.dot(D))) ||
-
-			(((a0 * abs(C.row(1)[0]) + a1 * abs(C.row(0)[0])) + (b1 * abs(C.row(2)[2]) + b2 * abs(C.row(2)[1]))) < abs(C.row(0)[0] * A1.dot(D) - C.row(1)[0] * A0.dot(D))) ||
-			(((a0 * abs(C.row(1)[1]) + a2 * abs(C.row(0)[1])) + (b0 * abs(C.row(2)[2]) + b2 * abs(C.row(2)[0]))) < abs(C.row(0)[1] * A1.dot(D) - C.row(1)[1] * A0.dot(D))) ||
-			(((a0 * abs(C.row(1)[2]) + a2 * abs(C.row(0)[2])) + (b0 * abs(C.row(2)[1]) + b1 * abs(C.row(2)[0]))) < abs(C.row(0)[2] * A1.dot(D) - C.row(1)[2] * A0.dot(D)));   
+	bool Renderer::tableCalc(Eigen::Matrix3f* A, float a0, float a1, float a2, Eigen::Matrix3f* B, float b0, float b1, float b2, Eigen::Matrix3f* C, Eigen::Vector3f* D) {
+		return (a0 + (b0 * abs(C->row(0)[0]) + b1 * abs(C->row(0)[1]) + b2 * abs(C->row(0)[2])) < abs(A->col(0).dot(*D))) ||
+			(a1 + (b0 * abs(C->row(1)[0]) + b1 * abs(C->row(1)[1]) + b2 * abs(C->row(1)[2])) < abs(A->col(1).dot(*D))) ||
+			(a2 + (b0 * abs(C->row(2)[0]) + b1 * abs(C->row(2)[1]) + b2 * abs(C->row(2)[2])) < abs(A->col(2).dot(*D))) ||
+			(b0 + (a0 * abs(C->row(0)[0]) + a1 * abs(C->row(1)[0]) + a2 * abs(C->row(2)[0])) < abs(B->col(0).dot(*D))) ||
+			(b1 + (a0 * abs(C->row(0)[1]) + a1 * abs(C->row(1)[1]) + a2 * abs(C->row(2)[1])) < abs(B->col(1).dot(*D))) ||
+			(b2 + (a0 * abs(C->row(0)[2]) + a1 * abs(C->row(1)[2]) + a2 * abs(C->row(2)[2])) < abs(B->col(2).dot(*D))) ||
+			(((a1 * abs(C->row(2)[0]) + a2 * abs(C->row(1)[0])) + (b1 * abs(C->row(0)[2]) + b2 * abs(C->row(0)[1]))) < abs(C->row(1)[0] * A->col(2).dot(*D) - C->row(2)[0] * A->col(1).dot(*D))) ||
+			(((a1 * abs(C->row(2)[1]) + a2 * abs(C->row(1)[1])) + (b0 * abs(C->row(0)[2]) + b2 * abs(C->row(0)[0]))) < abs(C->row(1)[1] * A->col(2).dot(*D) - C->row(2)[1] * A->col(1).dot(*D))) ||
+			(((a1 * abs(C->row(2)[2]) + a2 * abs(C->row(1)[2])) + (b0 * abs(C->row(0)[1]) + b1 * abs(C->row(0)[0]))) < abs(C->row(1)[2] * A->col(2).dot(*D) - C->row(2)[2] * A->col(1).dot(*D))) ||
+																																														   
+			(((a0 * abs(C->row(2)[0]) + a2 * abs(C->row(0)[0])) + (b1 * abs(C->row(1)[2]) + b2 * abs(C->row(1)[1]))) < abs(C->row(2)[0] * A->col(0).dot(*D) - C->row(0)[0] * A->col(2).dot(*D))) ||
+			(((a0 * abs(C->row(2)[1]) + a2 * abs(C->row(0)[1])) + (b0 * abs(C->row(1)[2]) + b2 * abs(C->row(1)[0]))) < abs(C->row(2)[1] * A->col(0).dot(*D) - C->row(0)[1] * A->col(2).dot(*D))) ||
+			(((a0 * abs(C->row(2)[2]) + a2 * abs(C->row(0)[2])) + (b0 * abs(C->row(1)[1]) + b1 * abs(C->row(1)[0]))) < abs(C->row(2)[2] * A->col(0).dot(*D) - C->row(0)[2] * A->col(2).dot(*D))) ||
+																																														   
+			(((a0 * abs(C->row(1)[0]) + a1 * abs(C->row(0)[0])) + (b1 * abs(C->row(2)[2]) + b2 * abs(C->row(2)[1]))) < abs(C->row(0)[0] * A->col(1).dot(*D) - C->row(1)[0] * A->col(0).dot(*D))) ||
+			(((a0 * abs(C->row(1)[1]) + a2 * abs(C->row(0)[1])) + (b0 * abs(C->row(2)[2]) + b2 * abs(C->row(2)[0]))) < abs(C->row(0)[1] * A->col(1).dot(*D) - C->row(1)[1] * A->col(0).dot(*D))) ||
+			(((a0 * abs(C->row(1)[2]) + a2 * abs(C->row(0)[2])) + (b0 * abs(C->row(2)[1]) + b1 * abs(C->row(2)[0]))) < abs(C->row(0)[2] * A->col(1).dot(*D) - C->row(1)[2] * A->col(0).dot(*D)));
 	}
-
 	void Renderer::go_Bunny() {
-		switch (arrow)
+		
+		switch (scn->game_level)
 		{
-		case 0: //left
-			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(-0.01, 0, 0));
+		case 1:
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data()._y, scn->data()._z));
 			break;
-		case 1:	//right
-			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(0.01, 0, 0));
+
+
+		case 2:
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data()._y, scn->data()._z));
 			break;
-		case 2:	//up
-			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(0, 0.01, 0));
+		case 3:
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data()._y, scn->data()._z));
 			break;
-		case 3:	//down
-			scn->data_list[scn->last_selected_data_index].MyTranslate(Eigen::Vector3f(0, -0.01, 0));
+		case 4: 
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data()._y, scn->data()._z));
+			scn->data()._y -= 0.1;
+			if (scn->data()._y <= -2) {
+				scn->data()._y = -scn->data()._y;
+				
+			}
+			break;
+		case 5:	
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data().y_sign*exp(scn->data()._y), 0));
+			
+			if (scn->data().stage == 0) {
+				scn->data()._y += 0.1;
+				if (scn->data()._y >= -3.025) {
+					scn->data().stage = 1;
+				}
+			}
+			else if ( scn->data().stage==1) {
+				scn->data()._y += 0.1;
+				scn->data()._x += 1.5/32;
+				if (scn->data()._y >= 0.105) {
+					scn->data().stage = 2;
+				}
+			}
+			else if (scn->data().stage == 2){
+				
+				scn->data()._y -= 0.1;
+				scn->data()._x += 1.5 / 32;
+				if (scn->data()._y <= -3) {
+					scn->data().stage = 3;
+					scn->data().y_sign = -1;
+				}
+			}
+			else if(scn->data().stage == 3)
+			{
+				
+				
+				scn->data()._y += 0.1;
+				scn->data()._x -= 1.5 / 32;
+				if (scn->data()._y >= 0.105) {
+					scn->data().stage = 4;
+				}
+			}
+			else
+			{
+				scn->data()._x = -1.5;
+				scn->data()._y -= 0.1;
+			}
+			scn->moveDown += 1;
+
+			break;
+		case 6:
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data()._y, scn->data()._z));
+			if (scn->data().stage == 0) {
+				scn->data()._y += 0.01;
+				scn->data()._x += 0.01;
+				if (scn->data()._y >= 0.2) {
+					scn->data().stage = 1;
+				}
+			}
+			else if (scn->data().stage == 1) {
+				scn->data()._y -= 0.01;
+				scn->data()._x += 0.01;
+				if(scn->data()._x>=0.2)
+					scn->data().stage = 2;
+			}
+			else if (scn->data().stage == 2) {
+				scn->data()._y -= 0.01;
+				scn->data()._x -= 0.01;
+				if (scn->data()._y <= -0.2)
+					scn->data().stage = 3;
+			}
+			else if (scn->data().stage == 3) {
+				scn->data()._y += 0.01;
+				scn->data()._x -= 0.01;
+				if (scn->data()._x <= -0.2)
+					scn->data().stage = 0;
+			}
+			break;
+		case 7:
+			scn->data().MyTranslate(Eigen::Vector3f(scn->data()._x, scn->data()._y, scn->data()._z));
+			if (scn->data().stage == 0) {
+				scn->data()._y += 0.01;
+				scn->data()._x += 0.01;
+				if (scn->data()._y >= 0.2) {
+					scn->data().stage = 1;
+				}
+			}
+			else if (scn->data().stage == 1) {
+				scn->data()._y -= 0.01;
+				scn->data()._x += 0.01;
+				if (scn->data()._x >= 0.2)
+					scn->data().stage = 2;
+			}
+			else if (scn->data().stage == 2) {
+				scn->data()._y -= 0.01;
+				scn->data()._x -= 0.01;
+				if (scn->data()._y <= -0.2)
+					scn->data().stage = 3;
+			}
+			else if (scn->data().stage == 3) {
+				scn->data()._y += 0.01;
+				scn->data()._x -= 0.01;
+				if (scn->data()._x <= -0.2)
+					scn->data().stage = 0;
+			}
 			break;
 		default:
 			break;
 		}
-		checkCollision(scn->data_list[0].tree, scn->data_list[1].tree);
-		
+
 
 	}
+	void  Renderer::start_time() {
+		time_start = time(NULL);
+	}
+	void Renderer::start_level_sound() {
+		PlaySound(TEXT("soundEffects\\rattlesnake6.wav"), NULL, SND_FILENAME|SND_LOOP | SND_ASYNC);
+	}
+	
+	void Renderer::snake_win_sound() {
+		PlaySound(TEXT("soundEffects\\applause7.wav"), NULL, SND_FILENAME | SND_ASYNC);
+	}
+	void Renderer::snake_lose_sound() {
+		PlaySound(TEXT("soundEffects\\boo3.wav"), NULL, SND_FILENAME | SND_ASYNC);
+	}
+	void Renderer::ReSetGame() {
+		
+		for (int i = scn->data_list.size() - 1; i >= 0; --i) {
+			scn->erase_mesh(i);
+		}
+		
+		scn->load_meshes_from_file("configuration.txt");
+		scn->erase_mesh(0);
+		scn->initEdges();
+		locateCore1();
+		line_less();
+		
+		snake_win = false;
+	}
+	
+
 
 	//IGL_INLINE void Viewer::select_hovered_core()
 	//{

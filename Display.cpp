@@ -122,34 +122,53 @@ bool Display::launch_rendering(bool loop)
 	{
 
 		double tic = igl::get_seconds();
-		
 		renderer->draw(window);
 		glfwSwapBuffers(window);
 		if (renderer->core().is_animating || frame_counter++ < num_extra_frames)
 		{//motion
 			glfwPollEvents();
+			if (renderer->snake_win) {
+				renderer->snake_win_sound();
+				renderer->current_score += renderer->GetScene()->game_level * 100;
+				std::cout <<"Good job!"<<std::endl<< "current score:" << renderer->current_score << std::endl;
+				renderer->GetScene()->game_level++;
+				renderer->ReSetGame();
 			
+			}
+			
+			int time_end = time(NULL);
+			//std::cout << "time start: " << renderer->time_start << std::endl << "time end: " << time_end << std::endl;
+			if (time_end - renderer->time_start > 10&& renderer->GetScene()->ik_flag) {
+				renderer->snake_lose_sound();
+				renderer->GetScene()->ik_flag = false;
+				renderer->snake_lost = true;
+				//renderer->ReSetGame();
+				std::cout << "GAME OVER!!! YOU LOSE!!!!!!!!!!" <<std::endl;
+				std::cout << "Want to start again?" << std::endl<< "Yes? press y" << std::endl <<"No? press n" << std::endl;
+				
+			}
 			// In microseconds
 			double duration = 1000000. * (igl::get_seconds() - tic);
-			
 			const double min_duration = 1000000. / renderer->core().animation_max_fps;
 			if (duration < min_duration)
 			{
-				
 				std::this_thread::sleep_for(std::chrono::microseconds((int)(min_duration - duration)));
 				if (renderer->GetScene()->ik_flag) {
+					renderer->checkCollision_helper();
+				}
+				if (renderer->GetScene()->ik_flag) {
+					renderer->go_Bunny();
 					renderer->ik_solver();
 				}
-				if (renderer->GetScene()->go_flag) {
-					renderer->go_Bunny();
+				else {
+					renderer->ik_fixer();
 				}
-			
+				
 			}
 		}
 		else
 		{
 			glfwPollEvents();
-			
 			frame_counter = 0;
 		}
 		if (!loop)

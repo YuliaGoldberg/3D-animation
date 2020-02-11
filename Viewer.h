@@ -7,14 +7,11 @@
 // obtain one at http://mozilla.org/MPL/2.0/.
 #ifndef IGL_OPENGL_GLFW_VIEWER_H
 #define IGL_OPENGL_GLFW_VIEWER_H
-#endif
+
 #ifndef IGL_OPENGL_4
 #define IGL_OPENGL_4
 #endif
-#define IGL_COLLAPSE_EDGE_NULL 0
-#include<iostream> 
-#include<algorithm> // for heap operations
-#include "igl/AABB.h"
+
 #include "../../igl_inline.h"
 #include "../MeshGL.h"
 //#include "../ViewerCore.h"
@@ -23,18 +20,16 @@
 
 #include <Eigen/Core>
 #include <Eigen/Geometry>
-#include <igl/igl_inline.h>
+
 #include <vector>
 #include <string>
 #include <cstdint>
-#include <set>
-#include <queue>
 
 #define IGL_MOD_SHIFT           0x0001
 #define IGL_MOD_CONTROL         0x0002
 #define IGL_MOD_ALT             0x0004
 #define IGL_MOD_SUPER           0x0008
-using namespace std;
+
 
 
 namespace igl
@@ -47,40 +42,26 @@ namespace glfw
   class Viewer : public Movable
   {
   public:
-     
-	  typedef set<pair<double, int> > PriorityQueue;
-	  struct InfoStruct
-	  {
-		  Eigen::MatrixXi E;
-		  Eigen::VectorXi EMAP;
-		  Eigen::MatrixXi EF;
-		  Eigen::MatrixXi EI;
-		  vector<vector<int>> VF;
-		  vector<vector<int>> VI;
-		  Eigen::MatrixXd C;
-		  PriorityQueue Q;
-		  vector<Eigen::Matrix4d> Qs;
-		  vector<PriorityQueue::iterator > Qit;
-	  };
-      
-      struct linkInfo
-      {
-          int prev;
-          double cylinder_length;
-         // Eigen::Vector3f topCylinder;
-      };
     // UI Enumerations
    // enum class MouseButton {Left, Middle, Right};
    // enum class MouseMode { None, Rotation, Zoom, Pan, Translation} mouse_mode;
     IGL_INLINE void init();
     IGL_INLINE void init_plugins();
     IGL_INLINE void shutdown_plugins();
+    
     Viewer();
     ~Viewer();
+	IGL_INLINE void load_meshes_from_file(const std::string& mesh_file_name_string);
     // Mesh IO
     IGL_INLINE bool load_mesh_from_file(const std::string & mesh_file_name);
-	IGL_INLINE void load_meshes_from_file(const std::string& mesh_file_name);
     IGL_INLINE bool save_mesh_to_file(const std::string & mesh_file_name);
+    
+	void initEdges();
+    void drawBox(AABB<Eigen::MatrixXd, 3> node, int index, Eigen::RowVector3d edgesColor);
+    Eigen::Matrix4f CalcParentsTrans(ViewerData* first);
+    Eigen::Matrix3f CalcParentsInverse(ViewerData* first);
+
+	Eigen::Matrix3f CalParentsRotationMatrixes(ViewerData* first);
    
     // Scene IO
     IGL_INLINE bool load_scene();
@@ -107,8 +88,6 @@ namespace glfw
     //   mesh_id  unique identifier associated to the desired mesh (current mesh if -1)
     IGL_INLINE ViewerData& data(int mesh_id = -1);
     IGL_INLINE const ViewerData& data(int mesh_id = -1) const;
-	IGL_INLINE InfoStruct& data2(int mesh_id = -1);
-	IGL_INLINE const InfoStruct& data2(int mesh_id = -1) const;
 
     // Append a new "slot" for a mesh (i.e., create empty entries at the end of
     // the data_list and opengl_state_list.
@@ -141,23 +120,10 @@ namespace glfw
     IGL_INLINE bool erase_mesh(const size_t index);
 
     // Retrieve mesh index from its unique identifier
-    // Returns 0 if not fou
+    // Returns 0 if not found
     IGL_INLINE size_t mesh_index(const int id) const;
-	bool new_collapse_edge(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXi& E, Eigen::VectorXi& EMAP, Eigen::MatrixXi& EF, Eigen::MatrixXi& EI, vector<vector<int>>& VF, vector<vector<int>>& VI, Eigen::MatrixXd& C, std::set<std::pair<double, int>>& Q, vector<Eigen::Matrix4d>& Qs, std::vector<std::set<std::pair<double, int>>::iterator>& Qit);
-	void initEdges();
-	//void initEdges2();
-    void initEdges3();
-    void initEdges4();
+    
 
-    void drawBox(AABB<Eigen::MatrixXd, 3> node,int index, Eigen::RowVector3d edgesColor);
-
-    void undrawBox();
-
-    Eigen::Matrix4f CalcParentsTrans(int index);
-    Eigen::Matrix3f CalcParentsInverse(int index);
-    double Scale(int index);
-	Eigen::Matrix4d initRp(double d, Eigen::Vector3d normal);
-	
 public:
     //////////////////////
     // Member variables //
@@ -166,21 +132,19 @@ public:
     // Alec: I call this data_list instead of just data to avoid confusion with
     // old "data" variable.
     // Stores all the data that should be visualized
-	
-	void minErrorcost(double& cost,  Eigen::RowVectorXd &p, const Eigen::Vector3d v1, const Eigen::Vector3d v2, const Eigen::Matrix4d q1, const Eigen::Matrix4d q2);
     std::vector<ViewerData> data_list;
-	std::vector<linkInfo> data_list_indices;
-    bool ik_flag = false;
-    bool go_flag = false;
-    bool collision_happend = false;
-    size_t old_poits_size1;
-    size_t old_poits_size0;
-
+    
     size_t selected_data_index;
-    size_t last_selected_data_index = 0;
-    int next_data_id;
-	vector<InfoStruct> data_list2;
+    float moveUp = 0.1;
+    int moveDown = 0;
+    int game_level = 1;
 
+
+    //size_t last_selected_data_index = 0;
+    bool picked_mesh = false;
+    ViewerData* snake_head;
+    int next_data_id;
+    bool ik_flag = false;
 
 
     
@@ -190,15 +154,10 @@ public:
 
     // Keep track of the global position of the scrollwheel
     float scroll_position;
-	
-		
+
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-		
-
   };
-
-  
 
 } // end namespace
 } // end namespace
@@ -206,4 +165,6 @@ public:
 
 #ifndef IGL_STATIC_LIBRARY
 #  include "Viewer.cpp"
+#endif
+
 #endif
